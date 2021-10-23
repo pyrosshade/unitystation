@@ -1,6 +1,8 @@
 using UnityEngine;
 using AddressableReferences;
+using Messages.Server.SoundMessages;
 using Objects.Mining;
+using TileManagement;
 
 namespace Items
 {
@@ -43,15 +45,20 @@ namespace Items
 				}
 				else
 				{
-					SoundManager.PlayNetworkedAtPos(SingletonSOSounds.Instance.BreakStone, interaction.WorldPositionTarget, sourceObj: interaction.Performer);
+					AudioSourceParameters parameters = new AudioSourceParameters(0, 100f);
+					_ = SoundManager.PlayNetworkedAtPosAsync(CommonSounds.Instance.BreakStone, interaction.WorldPositionTarget, parameters);
 					var cellPos = interactableTiles.MetaTileMap.WorldToCell(interaction.WorldPositionTarget);
 
 					var tile = interactableTiles.LayerTileAt(interaction.WorldPositionTarget) as BasicTile;
 					Spawn.ServerPrefab(tile.SpawnOnDeconstruct, interaction.WorldPositionTarget, count: tile.SpawnAmountOnDeconstruct);
 					interactableTiles.TileChangeManager.RemoveTile(cellPos, LayerType.Walls);
-					interactableTiles.TileChangeManager.RemoveOverlaysOfType(cellPos, LayerType.Effects, TileChangeManager.OverlayType.Mining);
+					interactableTiles.TileChangeManager.RemoveOverlaysOfType(cellPos, LayerType.Effects, OverlayType.Mining);
 				}
 			}
+
+			objectName = wallTile.DisplayName;
+
+			SoundManager.PlayNetworkedAtPos(pickaxeSound, interaction.WorldPositionTarget);
 
 			ToolUtils.ServerUseToolWithActionMessages(
 				interaction, calculatedMineTime,
@@ -85,7 +92,7 @@ namespace Items
 				default, default,
 				() =>
 				{
-					SoundManager.PlayNetworkedAtPos(SingletonSOSounds.Instance.BreakStone,
+					SoundManager.PlayNetworkedAtPos(CommonSounds.Instance.BreakStone,
 							interaction.PerformerPlayerScript.WorldPos, sourceObj: interaction.Performer);
 					_ = Despawn.ServerSingle(interaction.TargetObject);
 				});

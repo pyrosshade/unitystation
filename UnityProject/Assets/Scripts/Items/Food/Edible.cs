@@ -1,10 +1,14 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using AddressableReferences;
 using Chemistry;
 using Chemistry.Components;
 using UnityEngine;
 using UnityEngine.Serialization;
+using Random = UnityEngine.Random;
+using Messages.Server.SoundMessages;
 
 namespace Items.Food
 {
@@ -20,6 +24,8 @@ namespace Items.Food
 
 		[SerializeField]
 		private AddressableAudioSource sound = null;
+
+		private float RandomPitch => Random.Range( 0.7f, 1.3f );
 
 		private static readonly StandardProgressActionConfig ProgressConfig
 			= new StandardProgressActionConfig(StandardProgressActionType.Restrain);
@@ -76,7 +82,8 @@ namespace Items.Food
 			if (eater == null)
 			{
 				// todo: implement non-player eating
-				SoundManager.PlayNetworkedAtPos(sound, item.WorldPosition);
+				AudioSourceParameters eatSoundParameters = new AudioSourceParameters(pitch: RandomPitch);
+				SoundManager.PlayNetworkedAtPos(sound, item.WorldPosition, eatSoundParameters);
 				if (leavings != null)
 				{
 					Spawn.ServerPrefab(leavings, item.WorldPosition, transform.parent);
@@ -115,7 +122,8 @@ namespace Items.Food
 		public virtual void Eat(PlayerScript eater, PlayerScript feeder)
 		{
 			//TODO: Reimplement metabolism.
-			SoundManager.PlayNetworkedAtPos(sound, eater.WorldPos, sourceObj: eater.gameObject);
+			AudioSourceParameters eatSoundParameters = new AudioSourceParameters(pitch: RandomPitch);
+			SoundManager.PlayNetworkedAtPos(sound, eater.WorldPos, eatSoundParameters, sourceObj: eater.gameObject);
 
 			var Stomachs = eater.playerHealth.GetStomachs();
 			if (Stomachs.Count == 0)
@@ -123,14 +131,18 @@ namespace Items.Food
 				//No stomachs?!
 				return;
 			}
-			FoodContents.Divide(Stomachs.Count);
+
+			ReagentMix incomingFood = new ReagentMix();
+			FoodContents.CurrentReagentMix.TransferTo(incomingFood, FoodContents.CurrentReagentMix.Total);
+
+			incomingFood.Divide(Stomachs.Count);
 			foreach (var Stomach in Stomachs)
 			{
-				Stomach.StomachContents.Add(FoodContents.CurrentReagentMix.Clone());
+				Stomach.StomachContents.Add(incomingFood.Clone());
 			}
 
 
-			var feederSlot = feeder.ItemStorage.GetActiveHandSlot();
+			var feederSlot = feeder.DynamicItemStorage.GetActiveHandSlot();
 			//If food has a stack component, decrease amount by one instead of deleting the entire stack.
 			if (stackable != null)
 			{

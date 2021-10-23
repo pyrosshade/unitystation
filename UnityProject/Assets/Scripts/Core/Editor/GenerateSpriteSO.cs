@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Doors;
 using UnityEditor;
 using UnityEngine;
 using Newtonsoft.Json;
@@ -9,6 +10,9 @@ using Newtonsoft.Json.Linq;
 using Items;
 using Items.Botany;
 
+/// <summary>
+/// Used for random ass editor scripts, Has all the functions you need in a pinch
+/// </summary>
 public class GenerateSpriteSO : EditorWindow
 {
 	public static List<string> ToDel = new List<string>();
@@ -122,8 +126,58 @@ public class GenerateSpriteSO : EditorWindow
 		//
 		//	DirSearch_ex3Prefab(Application.dataPath + "/Resources/Prefabs/Items"); //
 		//
+
+
 		AssetDatabase.StartAssetEditing();
-		DirSearch_ex3(Application.dataPath + "/Textures");
+		AssetDatabase.ForceReserializeAssets();
+		//FindInGo
+		var doors = LoadAllPrefabsOfType<DoorController>("");
+
+		foreach (var door in doors)
+		{
+			FindInGo(door.gameObject);
+			EditorUtility.SetDirty( door.gameObject);
+		}
+		// var stuff = FindAssetsByType<PlayerSlotStoragePopulator>();
+		//
+		// foreach (var PSSP in stuff)
+		// {
+		// 	bool NOID = true;
+		// 	foreach (var Entry in PSSP.Entries)
+		// 	{
+		// 		if (Entry.NamedSlot == NamedSlot.id)
+		// 		{
+		// 			NOID = false;
+		// 		}
+		//
+		// 		if (Entry.NamedSlot == NamedSlot.uniform)
+		// 		{
+		// 			Entry.ReplacementStrategy = ReplacementStrategy.DespawnOther;
+		// 		}
+		//
+		// 		if (Entry.NamedSlot == NamedSlot.back)
+		// 		{
+		// 			Entry.ReplacementStrategy = ReplacementStrategy.DespawnOther;
+		// 		}
+		//
+		// 		if (Entry.NamedSlot == NamedSlot.ear)
+		// 		{
+		// 			Entry.ReplacementStrategy = ReplacementStrategy.DespawnOther;
+		// 		}
+		// 	}
+		//
+		// 	if (NOID)
+		// 	{
+		// 		var ID = Spawn.GetPrefabByName("IDCardAutoInit");
+		// 		var all = new SlotPopulatorEntry();
+		// 		all.Prefab = ID;
+		// 		all.NamedSlot = NamedSlot.id;
+		// 		PSSP.Entries.Add(all);
+		// 	}
+		// 	EditorUtility.SetDirty( PSSP);
+		// }
+
+		// DirSearch_ex3(Application.dataPath + "/Textures");
 		AssetDatabase.StopAssetEditing();
 		AssetDatabase.SaveAssets();
 		return;
@@ -310,6 +364,36 @@ public class GenerateSpriteSO : EditorWindow
 			spriteCatalogue.Catalogue.Add(Seve.Value);
 		}
 		*/
+	}
+
+	private static void FindInGo(GameObject g)
+	{
+		var components = g.GetComponents<Component>();
+
+		var r = 0;
+
+		for (var i = 0; i < components.Length; i++)
+		{
+			if (components[i] != null) continue;
+			var s = g.name;
+			var t = g.transform;
+			while (t.parent != null)
+			{
+				s = t.parent.name +"/"+s;
+				t = t.parent;
+			}
+
+			Debug.Log ($"{s} has a missing script at {i}", g);
+
+			var serializedObject = new SerializedObject(g);
+
+			var prop = serializedObject.FindProperty("m_Component");
+
+			prop.DeleteArrayElementAtIndex(i-r);
+			r++;
+
+			serializedObject.ApplyModifiedProperties();
+		}
 	}
 
 	public static List<T> FindAssetsByType<T>() where T : UnityEngine.Object

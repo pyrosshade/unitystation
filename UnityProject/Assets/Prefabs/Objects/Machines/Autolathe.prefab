@@ -20,11 +20,10 @@ MonoBehaviour:
   deviceType: 0
   isSelfPowered: 0
   wattusage: 500
-  resistance: 100000000
+  InitialResistance: 100000000
   RelatedAPC: {fileID: 0}
   AdvancedControlToScript: 0
   StateUpdateOnClient: 0
-  conType: 1
 --- !u!114 &1220382244776406165
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -61,6 +60,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   infiniteStorage: 0
   maximumResources: 1000000
+  UpdateGUIs:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!114 &4397833373819759390
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -73,7 +75,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 01e266b02032c5442b067c162ae425c1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  IsUsingSilo: 0
   usedStorage: {fileID: 0}
+  materialListGUI: {fileID: 0}
 --- !u!114 &4515876064805449849
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -120,6 +124,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   NetTabType: 18
+  aiInteractable: 1
 --- !u!1001 &7881568538303212051
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -141,6 +146,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_LocalRotation.z
       value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 951381747229521920, guid: ebb08cf966efc084aa918bd8d9429604,
+        type: 3}
+      propertyPath: foreverID
+      value: a223c02f818b8d74abd3e94371d523d4
       objectReference: {fileID: 0}
     - target: {fileID: 4116897424394887774, guid: ebb08cf966efc084aa918bd8d9429604,
         type: 3}
@@ -216,7 +226,7 @@ PrefabInstance:
     - target: {fileID: 5737521361753715499, guid: ebb08cf966efc084aa918bd8d9429604,
         type: 3}
       propertyPath: m_AssetId
-      value: 
+      value: a223c02f818b8d74abd3e94371d523d4
       objectReference: {fileID: 0}
     - target: {fileID: 6838691275677014393, guid: ebb08cf966efc084aa918bd8d9429604,
         type: 3}

@@ -22,6 +22,7 @@ GameObject:
   - component: {fileID: 8224268276445300722}
   - component: {fileID: 4509690511415981971}
   - component: {fileID: 6663514336625432320}
+  - component: {fileID: 3816408273032552164}
   m_Layer: 31
   m_Name: Ghost
   m_TagString: Untagged
@@ -101,7 +102,9 @@ MonoBehaviour:
   visibleName: ' '
   RTT: 0
   RcsMode: 0
-  IsPlayerSemiGhost: 0
+  playerState: 1
+  actionData: {fileID: 0}
+  playerChatLocation: {fileID: 4390267312333422610}
 --- !u!114 &3553771700973194240
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -190,6 +193,9 @@ MonoBehaviour:
   syncInterval: 0.1
   matrixDebugLogging: 0
   objectType: 2
+  customNetTransform: {fileID: 0}
+  prefabTracker: {fileID: 0}
+  CurrentsortingGroup: {fileID: 0}
   networkedLean: {fileID: 0}
 --- !u!114 &1176408661413567387
 MonoBehaviour:
@@ -238,11 +244,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9b91ecbcc199f4492b9a91e820070131, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  isDirty: 0
   sceneId: 0
   serverOnly: 0
   visible: 0
-  m_AssetId: 
+  m_AssetId: 15adb8ff4b5062d41a3738e0a52ea01c
   hasSpawned: 0
 --- !u!114 &8224268276445300722
 MonoBehaviour:
@@ -285,6 +290,20 @@ MonoBehaviour:
   shadow: {fileID: 0}
   draggerMustBeAdjacent: 1
   allowDragWhileSoftCrit: 1
+--- !u!114 &3816408273032552164
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4390267312333422610}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7f2289be7f53edd4a99fd0e94ec456bb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  syncMode: 1
+  syncInterval: 0.1
 --- !u!1 &7320126117105815585
 GameObject:
   m_ObjectHideFlags: 0
@@ -328,6 +347,7 @@ SpriteRenderer:
   m_CastShadows: 0
   m_ReceiveShadows: 0
   m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
   m_MotionVectors: 1
   m_LightProbeUsage: 1
   m_ReflectionProbeUsage: 1
@@ -385,6 +405,5 @@ MonoBehaviour:
   PresentSpriteSet: {fileID: 11400000, guid: 920c286f89116144f9dc93553e3c8282, type: 2}
   randomInitialSprite: 0
   pushTextureOnStartUp: 1
-  variantIndex: 0
+  initialVariantIndex: 0
   palette: []
-  Sprites: []

@@ -273,7 +273,7 @@ namespace IngameDebugConsole
 		{
 			if (CustomNetworkManager.Instance._isServer)
 			{
-				PlayerManager.LocalPlayerScript.playerHealth.ApplyDamageToRandom(null, 99999f, AttackType.Internal, DamageType.Brute);
+				PlayerManager.LocalPlayerScript.playerHealth.ApplyDamageToBodyPart(null, 99999f, AttackType.Internal, DamageType.Brute);
 			}
 		}
 #if UNITY_EDITOR
@@ -363,21 +363,60 @@ namespace IngameDebugConsole
 			{
 				foreach ( ConnectedPlayer player in PlayerList.Instance.InGamePlayers )
 				{
+					foreach (var itemSlot in player.Script.DynamicItemStorage.GetNamedItemSlots(NamedSlot.head))
+					{
 
-					var helmet = Spawn.ServerPrefab("MiningHardsuitHelmet").GameObject;
-					var suit = Spawn.ServerPrefab("MiningHardsuit").GameObject;
-					var mask = Spawn.ServerPrefab(CommonPrefabs.Instance.Mask).GameObject;
-					var oxyTank = Spawn.ServerPrefab(CommonPrefabs.Instance.EmergencyOxygenTank).GameObject;
-					var MagBoots = Spawn.ServerPrefab("MagBoots").GameObject;
 
-					Inventory.ServerAdd(helmet, player.Script.ItemStorage.GetNamedItemSlot(NamedSlot.head), ReplacementStrategy.DropOther);
-					Inventory.ServerAdd(suit, player.Script.ItemStorage.GetNamedItemSlot(NamedSlot.outerwear), ReplacementStrategy.DropOther);
-					Inventory.ServerAdd(mask, player.Script.ItemStorage.GetNamedItemSlot(NamedSlot.mask), ReplacementStrategy.DropOther);
-					Inventory.ServerAdd(oxyTank, player.Script.ItemStorage.GetNamedItemSlot(NamedSlot.storage01), ReplacementStrategy.DropOther);
-					Inventory.ServerAdd(MagBoots, player.Script.ItemStorage.GetNamedItemSlot(NamedSlot.feet), ReplacementStrategy.DropOther);
+						var helmet = Spawn.ServerPrefab("MiningHardsuitHelmet").GameObject;
+						Inventory.ServerAdd(helmet,itemSlot, ReplacementStrategy.DropOther);
+					}
+
+					foreach (var itemSlot in player.Script.DynamicItemStorage.GetNamedItemSlots(NamedSlot.outerwear))
+					{
+						var suit = Spawn.ServerPrefab("MiningHardsuit").GameObject;
+						Inventory.ServerAdd(suit,itemSlot, ReplacementStrategy.DropOther);
+					}
+
+
+					foreach (var itemSlot in player.Script.DynamicItemStorage.GetNamedItemSlots(NamedSlot.mask))
+					{
+						var mask = Spawn.ServerPrefab(CommonPrefabs.Instance.Mask).GameObject;
+						Inventory.ServerAdd(mask,itemSlot, ReplacementStrategy.DropOther);
+					}
+
+					foreach (var itemSlot in player.Script.DynamicItemStorage.GetPocketsSlots())
+					{
+						var oxyTank = Spawn.ServerPrefab(CommonPrefabs.Instance.EmergencyOxygenTank).GameObject;
+						Inventory.ServerAdd(oxyTank,itemSlot, ReplacementStrategy.DropOther);
+					}
+
+					foreach (var itemSlot in player.Script.DynamicItemStorage.GetNamedItemSlots(NamedSlot.feet))
+					{
+						var MagBoots = Spawn.ServerPrefab("MagBoots").GameObject;
+						Inventory.ServerAdd(MagBoots,itemSlot, ReplacementStrategy.DropOther);
+					}
+
 					player.Script.Equipment.IsInternalsEnabled = true;
 				}
 
+			}
+		}
+
+#if UNITY_EDITOR
+		[MenuItem("Networking/Give me some AA!")]
+#endif
+		private static void MakeAA()
+		{
+			if (CustomNetworkManager.Instance._isServer)
+			{
+				foreach ( ConnectedPlayer player in PlayerList.Instance.InGamePlayers )
+				{
+					foreach (var itemSlot in player.Script.DynamicItemStorage.GetNamedItemSlots(NamedSlot.id))
+					{
+						var ID = Spawn.ServerPrefab("IDCardCaptainsSpare").GameObject;
+						Inventory.ServerAdd(ID,itemSlot, ReplacementStrategy.DropOther);
+					}
+				}
 			}
 		}
 
@@ -390,8 +429,11 @@ namespace IngameDebugConsole
 			{
 				foreach ( ConnectedPlayer player in PlayerList.Instance.InGamePlayers )
 				{
-					var InsulatedGloves = Spawn.ServerPrefab("InsulatedGloves").GameObject;
-					Inventory.ServerAdd(InsulatedGloves, player.Script.ItemStorage.GetNamedItemSlot(NamedSlot.hands), ReplacementStrategy.DropOther);
+					foreach (var itemSlot in player.Script.DynamicItemStorage.GetNamedItemSlots(NamedSlot.hands))
+					{
+						var InsulatedGloves = Spawn.ServerPrefab("InsulatedGloves").GameObject;
+						Inventory.ServerAdd(InsulatedGloves,itemSlot, ReplacementStrategy.DropOther);
+					}
 				}
 
 			}
@@ -413,7 +455,7 @@ namespace IngameDebugConsole
 					var gasMix = matrix.MetaDataLayer.Get(localPos).GasMix;
 					gasMix.AddGas(Gas.Plasma, 100);
 					gasMix.AddGas(Gas.Oxygen, 100);
-					matrix.ReactionManager.ExposeHotspot(localPos);
+					matrix.ReactionManager.ExposeHotspot(localPos, 500);
 				}
 			}
 		}
@@ -544,7 +586,7 @@ namespace IngameDebugConsole
 					Chat.AddExamineMsgToClient(DateTime.Now.ToFileTimeUtc().ToString());
 					break;
 				case 2:
-					Chat.AddChatMsgToChat(ConnectedPlayer.Invalid, DateTime.Now.ToFileTimeUtc().ToString(), ChatChannel.OOC);
+					Chat.AddChatMsgToChat(ConnectedPlayer.Invalid, DateTime.Now.ToFileTimeUtc().ToString(), ChatChannel.OOC, Loudness.NORMAL);
 					break;
 				default:
 					Chat.AddLocalMsgToChat(DateTime.Now.ToFileTimeUtc().ToString(), new Vector2(Random.value*100,Random.value*100), null);

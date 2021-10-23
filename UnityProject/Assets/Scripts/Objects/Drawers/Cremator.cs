@@ -1,8 +1,9 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using AddressableReferences;
-using HealthV2;
+using Systems.Clearance;
 
 namespace Objects.Drawers
 {
@@ -26,6 +27,7 @@ namespace Objects.Drawers
 		}
 
 		private AccessRestrictions accessRestrictions;
+		private ClearanceCheckable clearanceCheckable;
 
 		private const float BURNING_DURATION = 1.5f; // In seconds - timed to the Ding SFX.
 
@@ -33,6 +35,7 @@ namespace Objects.Drawers
 		{
 			base.Awake();
 			accessRestrictions = GetComponent<AccessRestrictions>();
+			clearanceCheckable = GetComponent<ClearanceCheckable>();
 		}
 
 		// This region (Interaction-RightClick) shouldn't exist once TODO in class summary is done.
@@ -42,7 +45,21 @@ namespace Objects.Drawers
 		{
 			RightClickableResult result = RightClickableResult.Create();
 			if (drawerState == DrawerState.Open) return result;
-			if (!accessRestrictions.CheckAccess(PlayerManager.LocalPlayer)) return result;
+
+			/* --ACCESS REWORK--
+			 *  TODO Remove the AccessRestriction check when we finish migrating!
+			 *
+			 */
+
+			if (accessRestrictions)
+			{
+				if (accessRestrictions.CheckAccess(PlayerManager.LocalPlayer) == false) return result;
+			}
+			else if (clearanceCheckable)
+			{
+				if (clearanceCheckable.HasClearance(PlayerManager.LocalPlayer) == false) return result;
+			}
+
 			var cremateInteraction = ContextMenuApply.ByLocalPlayer(gameObject, null);
 			if (!WillInteract(cremateInteraction, NetworkSide.Client)) return result;
 
@@ -92,7 +109,7 @@ namespace Objects.Drawers
 
 		private void UpdateCloseState()
 		{
-			if (serverHeldItems.Count > 0 || serverHeldPlayers.Count > 0)
+			if (container.IsEmpty == false)
 			{
 				SetDrawerState((DrawerState)CrematorState.ShutWithContents);
 			}
@@ -104,57 +121,38 @@ namespace Objects.Drawers
 			OnStartPlayerCremation();
 			StartCoroutine(PlayIncineratingAnim());
 			SoundManager.PlayNetworkedAtPos(CremationSound, DrawerWorldPosition, sourceObj: gameObject);
-			DestroyItems();
 		}
 
-		private void DestroyItems()
+		private void DestroyContents()
 		{
-			foreach (KeyValuePair<ObjectBehaviour, Vector3> item in serverHeldItems)
+			foreach (var obj in container.GetStoredObjects())
 			{
-				_ = Despawn.ServerSingle(item.Key.gameObject);
-			}
+				if (obj.TryGetComponent<PlayerScript>(out var script) && script.mind != null)
+				{
+					PlayerSpawn.ServerSpawnGhost(script.mind);
+				}
 
-			serverHeldItems = new Dictionary<ObjectBehaviour, Vector3>();
+				_ = Despawn.ServerSingle(obj);
+				container.RemoveObject(obj);
+			}
 		}
 
 		private void OnStartPlayerCremation()
 		{
-			var containsConsciousPlayer = false;
-
-			foreach (ObjectBehaviour player in serverHeldPlayers)
+			if (container.GetStoredObjects().Any(obj => obj.TryGetComponent<PlayerScript>(out var script)
+					&& (script.playerHealth.ConsciousState == ConsciousState.CONSCIOUS
+					|| script.playerHealth.ConsciousState == ConsciousState.BARELY_CONSCIOUS)))
 			{
-				LivingHealthMasterBase playerLHB = player.GetComponent<LivingHealthMasterBase>();
-				if (playerLHB.ConsciousState == ConsciousState.CONSCIOUS ||
-					playerLHB.ConsciousState == ConsciousState.BARELY_CONSCIOUS)
-				{
-					containsConsciousPlayer = true;
-				}
-			}
-
-			if (containsConsciousPlayer)
-			{
-				// This is an incredibly brutal SFX... it also needs chopping up.
+				// TODO: This is an incredibly brutal SFX... it also needs chopping up.
 				// SoundManager.PlayNetworkedAtPos("ShyguyScream", DrawerWorldPosition, sourceObj: gameObject);
 			}
-		}
-
-		private void OnFinishPlayerCremation()
-		{
-			foreach (var player in serverHeldPlayers)
-			{
-				var playerScript = player.GetComponent<PlayerScript>();
-				PlayerSpawn.ServerSpawnGhost(playerScript.mind);
-				_ = Despawn.ServerSingle(player.gameObject);
-			}
-
-			serverHeldPlayers = new List<ObjectBehaviour>();
 		}
 
 		private IEnumerator PlayIncineratingAnim()
 		{
 			SetDrawerState((DrawerState)CrematorState.ShutAndActive);
 			yield return WaitFor.Seconds(BURNING_DURATION);
-			OnFinishPlayerCremation();
+			DestroyContents();
 			UpdateCloseState();
 		}
 

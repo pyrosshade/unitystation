@@ -60,14 +60,14 @@ MonoBehaviour:
   performingDecision: 0
   performingAction: 0
   activated: 0
-  tickRate: 1
+  TickDelay: 1
   FollowTarget: {fileID: 0}
   targetOtherPlayersWhoGetInWay: 0
   onlyActOnTarget: 0
   doLerpOnAction: 0
   spriteHolder: {fileID: 8081786582678036113}
   actionCooldown: 1
-  mobAI: {fileID: 0}
+  mobAI: {fileID: 7768851117682908995}
   attackSound:
     SetLoadSetting: 0
     AssetAddress: Assets/Prefabs/NPC/bite.prefab
@@ -104,7 +104,7 @@ PrefabInstance:
     - target: {fileID: 2981390789209867571, guid: f74cbb9054020dd4f8c9dcdedd7398eb,
         type: 3}
       propertyPath: butcherResults.Array.size
-      value: 2
+      value: 3
       objectReference: {fileID: 0}
     - target: {fileID: 2981390789209867571, guid: f74cbb9054020dd4f8c9dcdedd7398eb,
         type: 3}
@@ -117,6 +117,12 @@ PrefabInstance:
       propertyPath: butcherResults.Array.data[1]
       value: 
       objectReference: {fileID: 2786145059108661523, guid: 9914f83c172606747877a09872724398,
+        type: 3}
+    - target: {fileID: 2981390789209867571, guid: f74cbb9054020dd4f8c9dcdedd7398eb,
+        type: 3}
+      propertyPath: butcherResults.Array.data[2]
+      value: 
+      objectReference: {fileID: 6989094639558291709, guid: 091452380cc20484c9d50501ddce41dd,
         type: 3}
     - target: {fileID: 3133844393595939535, guid: f74cbb9054020dd4f8c9dcdedd7398eb,
         type: 3}
@@ -215,7 +221,7 @@ PrefabInstance:
     - target: {fileID: 7581244375763357991, guid: f74cbb9054020dd4f8c9dcdedd7398eb,
         type: 3}
       propertyPath: m_AssetId
-      value: 
+      value: e481edcb288d49f488b609f15236afbe
       objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 3329383262291247399, guid: f74cbb9054020dd4f8c9dcdedd7398eb, type: 3}
@@ -226,6 +232,18 @@ GameObject:
     type: 3}
   m_PrefabInstance: {fileID: 8459564455701055161}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &7768851117682908995 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 2213213429927762426, guid: f74cbb9054020dd4f8c9dcdedd7398eb,
+    type: 3}
+  m_PrefabInstance: {fileID: 8459564455701055161}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2144788095502372098}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cfeb6401c1a57b4489160d9ef2571ef4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &8081786582678036113 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 382294827147974696, guid: f74cbb9054020dd4f8c9dcdedd7398eb,

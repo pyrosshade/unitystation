@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using Systems.Clearance;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.Serialization;
@@ -51,6 +52,7 @@ namespace Objects
 		public List<VendorItem> VendorContent = new List<VendorItem>();
 
 		private AccessRestrictions accessRestrictions;
+		private ClearanceCheckable clearanceCheckable;
 
 		public VendorUpdateEvent OnRestockUsed = new VendorUpdateEvent();
 		public VendorItemUpdateEvent OnItemVended = new VendorItemUpdateEvent();
@@ -68,6 +70,7 @@ namespace Objects
 			}
 
 			accessRestrictions = GetComponent<AccessRestrictions>();
+			clearanceCheckable = GetComponent<ClearanceCheckable>();
 		}
 
 		public void OnSpawnServer(SpawnInfo info)
@@ -103,6 +106,9 @@ namespace Objects
 			{
 				isEmagged = true;
 				emag.UseCharge(interaction);
+				Chat.AddActionMsgToChat(interaction,
+					"The product lock shorts out. light fumes pour from the dispenser...",
+							"You can smell caustic smoke from somewhere...");
 			}
 		}
 
@@ -160,11 +166,18 @@ namespace Objects
 				}
 			}
 
+			/* --ACCESS REWORK--
+			 *  TODO Remove the AccessRestriction check when we finish migrating!
+			 *
+			 */
 			// check player access
-			if (player != null && accessRestrictions && !isEmagged)
+			if (player != null && (accessRestrictions || clearanceCheckable) && !isEmagged)
 			{
-				var hasAccess = accessRestrictions.CheckAccess(player.GameObject);
-				if (hasAccess == false)
+				var hasAccess = accessRestrictions
+					? accessRestrictions.CheckAccess(player.GameObject)
+					: clearanceCheckable.HasClearance(player.GameObject);
+
+				if (hasAccess == false && player.Script.PlayerState != PlayerScript.PlayerStates.Ai)
 				{
 					Chat.AddWarningMsgFromServer(player.GameObject, noAccessMessage);
 					return false;
@@ -173,17 +186,24 @@ namespace Objects
 
 			if (itemToSpawn.Price > 0)
 			{
-				var playerStorage = player.GameObject.GetComponent<ItemStorage>();
-				var idCardObj = playerStorage.GetNamedItemSlot(NamedSlot.id).ItemObject;
-				var idCard = AccessRestrictions.GetIDCard(idCardObj);
-				if (idCard.currencies[(int) itemToSpawn.Currency] >= itemToSpawn.Price)
+				var playerStorage = player.GameObject.GetComponent<DynamicItemStorage>();
+				var itemSlotList = playerStorage.GetNamedItemSlots(NamedSlot.id);
+				foreach (var itemSlot in itemSlotList)
 				{
-					idCard.currencies[(int) itemToSpawn.Currency] -= itemToSpawn.Price;
-				}
-				else
-				{
-					Chat.AddWarningMsgFromServer(player.GameObject, tooExpensiveMessage);
-					return false;
+					if (itemSlot.ItemObject)
+					{
+						var idCard = AccessRestrictions.GetIDCard(itemSlot.ItemObject);
+						if (idCard.currencies[(int) itemToSpawn.Currency] >= itemToSpawn.Price)
+						{
+							idCard.currencies[(int) itemToSpawn.Currency] -= itemToSpawn.Price;
+							break;
+						}
+						else
+						{
+							Chat.AddWarningMsgFromServer(player.GameObject, tooExpensiveMessage);
+							return false;
+						}
+					}
 				}
 			}
 

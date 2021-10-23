@@ -7,6 +7,11 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 2770176055730463766, guid: d243d9aff97ede04581d82563a576f0c,
+        type: 3}
+      propertyPath: foreverID
+      value: e10f9003b4cb0c74a9fd14df00f8eb55
+      objectReference: {fileID: 0}
     - target: {fileID: 3138167408386266108, guid: d243d9aff97ede04581d82563a576f0c,
         type: 3}
       propertyPath: PresentSpriteSet
@@ -15,10 +20,25 @@ PrefabInstance:
         type: 2}
     - target: {fileID: 5688082005075186663, guid: d243d9aff97ede04581d82563a576f0c,
         type: 3}
+      propertyPath: DamageThreshold
+      value: 21
+      objectReference: {fileID: 0}
+    - target: {fileID: 5688082005075186663, guid: d243d9aff97ede04581d82563a576f0c,
+        type: 3}
       propertyPath: LobbyCustomisation
       value: 
       objectReference: {fileID: 7311007552350428261, guid: fa19af5f944e46e448ad7c8e663f71e6,
         type: 3}
+    - target: {fileID: 5688082005075186663, guid: d243d9aff97ede04581d82563a576f0c,
+        type: 3}
+      propertyPath: DismembermentChance
+      value: 0.1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5688082005075186663, guid: d243d9aff97ede04581d82563a576f0c,
+        type: 3}
+      propertyPath: bodyPartAshesAboveThisDamage
+      value: 100
+      objectReference: {fileID: 0}
     - target: {fileID: 5688082005075186663, guid: d243d9aff97ede04581d82563a576f0c,
         type: 3}
       propertyPath: BodyTypesSprites.BodyTypes.Array.data[0].Sprites.Array.data[0]
@@ -99,7 +119,7 @@ PrefabInstance:
     - target: {fileID: 9178098606820742607, guid: d243d9aff97ede04581d82563a576f0c,
         type: 3}
       propertyPath: m_AssetId
-      value: 
+      value: e10f9003b4cb0c74a9fd14df00f8eb55
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: d243d9aff97ede04581d82563a576f0c, type: 3}

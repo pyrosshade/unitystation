@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using HealthV2;
 using UnityEngine;
+using TileManagement;
 
 namespace Systems.Explosions
 {
@@ -73,7 +74,7 @@ namespace Systems.Explosions
 				if (IsPastWall(explosionCenter2d, tilePos2d, distance))
 				{
 					// Heat the air
-					matrix.ReactionManager.ExposeHotspotWorldPosition(tilePos2d);
+					matrix.ReactionManager.ExposeHotspotWorldPosition(tilePos2d, 1000);
 
 					// Calculate damage from explosion
 					int damage = CalculateDamage(tilePos2d, explosionCenter2d);
@@ -120,7 +121,7 @@ namespace Systems.Explosions
 
 			tileChangeManager.AddOverlay(position, TileType.Effects, "Fire");
 			yield return WaitFor.Seconds(time);
-			tileChangeManager.RemoveOverlaysOfName(position, LayerType.Effects, "Fire");
+			tileChangeManager.RemoveOverlaysOfType(position, LayerType.Effects, OverlayType.Fire);
 		}
 
 

@@ -2,11 +2,14 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.Rendering;
 using UnityEngine.Serialization;
 using Mirror;
-using Systems.Electricity;
+using Core.Editor.Attributes;
 using Tilemaps.Behaviours.Layers;
-using UnityEngine.Rendering;
+using Systems.Electricity;
+using Systems.Pipes;
+using System.Collections;
 
 public enum ObjectType
 {
@@ -32,26 +35,24 @@ public class RegisterTile : NetworkBehaviour, IServerDespawn
 
 	//relationships which need to be checked via polling due to being on different matrices
 	private List<BaseSpatialRelationship> crossMatrixRelationships;
-	private bool initialized;
 
 	[Tooltip("For debug purposes only. Logs trace-level debug messages in " +
 	         "Matrix logging category for this particular" +
 	         " object so it's easier to see what's happening to it.")]
 	public bool matrixDebugLogging;
 
-	private ObjectLayer objectLayer;
-
 	/// <summary>
 	/// Object layer this gameobject is in (all registertiles live in an object layer).
 	/// </summary>
-	public ObjectLayer ObjectObjectLayer => objectLayer;
+	private ObjectLayer objectLayer;
 
 	/// <summary>
 	/// Tile change manager of the matrix this object is on.
 	/// </summary>
 	public TileChangeManager TileChangeManager => Matrix ? Matrix.TileChangeManager : null;
 
-	[Tooltip("The kind of object this is.")] [FormerlySerializedAs("ObjectType")] [SerializeField]
+	[SerializeField, FormerlySerializedAs("ObjectType"), PrefabModeOnly]
+	[Tooltip("The kind of object this is.")]
 	private ObjectType objectType = ObjectType.Item;
 
 	/// <summary>
@@ -59,58 +60,12 @@ public class RegisterTile : NetworkBehaviour, IServerDespawn
 	/// </summary>
 	public ObjectType ObjectType => objectType;
 
-	private PushPull customTransform;
-	public PushPull CustomTransform => customTransform ? customTransform : (customTransform = GetComponent<PushPull>());
+	private IPushable iPushable;
 
 	/// <summary>
 	/// Matrix this object lives in
 	/// </summary>
-	public Matrix Matrix
-	{
-		get => matrix;
-		private set
-		{
-			if (value)
-			{
-				//LogMatrixDebug($"Matrix set from {matrix} to {value}");
-				if (matrix != null && matrix.MatrixMove != null)
-				{
-					matrix.MatrixMove.MatrixMoveEvents.OnRotate.RemoveListener(OnRotate);
-				}
-
-				matrix = value;
-				if (matrix != null && matrix.MatrixMove != null)
-				{
-					//LogMatrixDebug($"Registered OnRotate to {matrix}");
-					matrix.MatrixMove.MatrixMoveEvents.OnRotate.AddListener(OnRotate);
-					if (isServer)
-					{
-						OnRotate(new MatrixRotationInfo(matrix.MatrixMove, matrix.MatrixMove.FacingOffsetFromInitial,
-							NetworkSide.Server, RotationEvent.Register));
-					}
-
-					OnRotate(new MatrixRotationInfo(matrix.MatrixMove, matrix.MatrixMove.FacingOffsetFromInitial,
-						NetworkSide.Client, RotationEvent.Register));
-				}
-
-				if (isServer && TryGetComponent<ItemStorage>(out var itemStorage))
-				{
-					foreach (var itemSlot in itemStorage.GetItemSlots())
-					{
-						if (itemSlot.Item)
-						{
-							var itemSlotRegisterItem = itemSlot.Item.GetComponent<RegisterItem>();
-							itemSlotRegisterItem.matrix = matrix;
-						}
-					}
-				}
-			}
-		}
-	}
-
-
-	private Matrix matrix;
-	public bool MatrixIsMovable => Matrix && Matrix.MatrixMove;
+	public Matrix Matrix { get; private set; }
 
 	/// <summary>
 	/// Invoked when the parent net ID of this RegisterTile has changed, after reparenting
@@ -147,7 +102,7 @@ public class RegisterTile : NetworkBehaviour, IServerDespawn
 	/// Matrix gameObject, i.e. the one with NetworkedMatrix not the one with Matrix, hence calling
 	/// it "networked matrix".
 	/// </summary>
-	protected uint NetworkedMatrixNetId => networkedMatrixNetId;
+	public uint NetworkedMatrixNetId => networkedMatrixNetId;
 
 	/// <summary>
 	/// Returns the correct client/server version of world position depending on if this is
@@ -155,8 +110,8 @@ public class RegisterTile : NetworkBehaviour, IServerDespawn
 	/// </summary>
 	public Vector3Int WorldPosition => isServer ? WorldPositionServer : WorldPositionClient;
 
-	public Vector3Int WorldPositionServer => MatrixManager.Instance.LocalToWorldInt(serverLocalPosition, Matrix);
-	public Vector3Int WorldPositionClient => MatrixManager.Instance.LocalToWorldInt(clientLocalPosition, Matrix);
+	public Vector3Int WorldPositionServer => MatrixManager.LocalToWorldInt(LocalPositionServer, Matrix);
+	public Vector3Int WorldPositionClient => MatrixManager.LocalToWorldInt(LocalPositionClient, Matrix);
 
 	/// <summary>
 	/// Registered local position of this object. Returns correct value depending on if this is on the
@@ -168,59 +123,9 @@ public class RegisterTile : NetworkBehaviour, IServerDespawn
 	/// the "registered" local position of this object (which might differ from transform.localPosition).
 	/// It will be set to TransformState.HiddenPos when hiding the object.
 	/// </summary>
-	public Vector3Int LocalPositionServer
-	{
-		get => serverLocalPosition;
-		private set
-		{
-			if (serverLocalPosition == value) return;
-			if (objectLayer)
-			{
-				objectLayer.ServerObjects.Remove(serverLocalPosition, this);
-				if (value != TransformState.HiddenPos)
-				{
-					objectLayer.ServerObjects.Add(value, this);
-				}
-			}
+	public Vector3Int LocalPositionServer { get; private set; }
 
-			serverLocalPosition = value;
-		}
-	}
-
-	private Vector3Int serverLocalPosition;
-
-	public Vector3Int LocalPositionClient
-	{
-		get => clientLocalPosition;
-		private set
-		{
-			if (clientLocalPosition == value) return;
-			bool appeared = clientLocalPosition == TransformState.HiddenPos && value != TransformState.HiddenPos;
-			bool disappeared = clientLocalPosition != TransformState.HiddenPos && value == TransformState.HiddenPos;
-			if (objectLayer)
-			{
-				objectLayer.ClientObjects.Remove(clientLocalPosition, this);
-				if (value != TransformState.HiddenPos)
-				{
-					objectLayer.ClientObjects.Add(value, this);
-				}
-			}
-
-			clientLocalPosition = value;
-
-			if (appeared)
-			{
-				OnAppearClient.Invoke();
-			}
-
-			if (disappeared)
-			{
-				OnDisappearClient.Invoke();
-			}
-		}
-	}
-
-	private Vector3Int clientLocalPosition;
+	public Vector3Int LocalPositionClient { get; private set; }
 
 	/// <summary>
 	/// Event invoked on server side when position changes. Passes the new local position in the matrix.
@@ -229,68 +134,100 @@ public class RegisterTile : NetworkBehaviour, IServerDespawn
 
 	private IMatrixRotation[] matrixRotationHooks;
 
-	private CustomNetTransform cnt;
+	public CustomNetTransform customNetTransform;
 
 	//cached for fast fire exposure without gc
 	private IFireExposable[] fireExposables;
 	private bool hasCachedComponents = false;
 
+	[SerializeField] private PrefabTracker prefabTracker;
+	public PrefabTracker PrefabTracker => prefabTracker;
 
 	private ElectricalOIinheritance electricalData;
 	public ElectricalOIinheritance ElectricalData => electricalData;
 
-	private Pipes.PipeData pipeData;
-	public Pipes.PipeData PipeData => pipeData;
+	private PipeData pipeData;
+	public PipeData PipeData => pipeData;
 
+	[PrefabModeOnly]
 	public SortingGroup CurrentsortingGroup;
+
+	private bool Initialized;
 
 	#region Lifecycle
 
 	protected virtual void Awake()
 	{
-		EnsureInit();
-	}
-
-	private void EnsureInit()
-	{
-		if (hasCachedComponents) return;
-		cnt = GetComponent<CustomNetTransform>();
+		if (transform.parent) //clients dont have this set yet
+		{
+			objectLayer = transform.parent.GetComponent<ObjectLayer>() ?? transform.parent.GetComponentInParent<ObjectLayer>();
+		}
+		customNetTransform = GetComponent<CustomNetTransform>();
 		matrixRotationHooks = GetComponents<IMatrixRotation>();
 		fireExposables = GetComponents<IFireExposable>();
 		CurrentsortingGroup = GetComponent<SortingGroup>();
-	}
-
-	//we have lifecycle methods from lifecycle system, but lots of things currently depend on this register tile
-	//being initialized as early as possible so we still have this in place.
-	private void OnEnable()
-	{
-		if (Application.isPlaying == false) return;
-		LogMatrixDebug("OnEnable");
-		initialized = false;
-		ForceRegister();
-		EventManager.AddHandler(Event.MatrixManagerInit, MatrixManagerInit);
-	}
-
-	private void OnDisable()
-	{
-		EventManager.RemoveHandler(Event.MatrixManagerInit, MatrixManagerInit);
-	}
-
-	public override void OnStartClient()
-	{
-		LogMatrixDebug("OnStartClient");
-		EnsureInit();
-		SyncNetworkedMatrixNetId(networkedMatrixNetId, networkedMatrixNetId);
+		iPushable = GetComponent<IPushable>();
 	}
 
 	public override void OnStartServer()
 	{
-		LogMatrixDebug("OnStartServer");
-		EnsureInit();
-		ForceRegister();
-		if (Matrix != null)
+		var matrix = transform.parent.GetComponentInParent<Matrix>();
+		if (matrix.Initialized)
 		{
-			networkedMatrixNetId = Matrix.transform.parent.gameObject.GetComponent<NetworkedMatrix>().MatrixSync.netId;
+			Initialize(matrix);
+		}
+	}
+
+	public override void OnStartClient()
+	{
+		if (isServer)
+			return;
+
+		if (transform.parent == null) //object spawned mid-round
+		{
+			NetworkedMatrix.InvokeWhenInitialized(networkedMatrixNetId, ClientLoading);
+		}
+		else
+		{
+			var matrix = transform.parent.GetComponentInParent<Matrix>();
+			if (matrix.Initialized)
+			{
+				Initialize(matrix);
+			}
+		}
+	}
+
+	public void ClientLoading(NetworkedMatrix networkedMatrix)
+	{
+		var matrix = networkedMatrix.matrix;
+		if (matrix.Initialized)
+		{
+			Initialize(matrix);
+		}
+		else
+		{
+			//will be gathered with a GetComponentsInChildren() and initialized by the matrix
+			transform.SetParent(matrix.transform);
+		}
+	}
+
+	public void Initialize(Matrix matrix)
+	{
+		Matrix = matrix;
+		if (iPushable != null)
+		{
+			iPushable.SetInitialPositionStates();
+		}
+
+		Initialized = true;
+		var networkedMatrix = Matrix.transform.parent.GetComponent<NetworkedMatrix>();
+		if (isServer)
+		{
+			ServerSetNetworkedMatrixNetID(networkedMatrix.MatrixSync.netId);
+		}
+		else
+		{
+			FinishNetworkedMatrixRegistration(networkedMatrix);
 		}
 	}
 
@@ -305,12 +242,6 @@ public class RegisterTile : NetworkBehaviour, IServerDespawn
 
 	public virtual void OnDespawnServer(DespawnInfo info)
 	{
-		if (objectLayer)
-		{
-			objectLayer.ServerObjects.Remove(LocalPositionServer, this);
-			objectLayer.ClientObjects.Remove(LocalPositionClient, this);
-		}
-
 		//cancel all relationships
 		if (sameMatrixRelationships != null)
 		{
@@ -339,18 +270,48 @@ public class RegisterTile : NetworkBehaviour, IServerDespawn
 
 	#endregion
 
-	//This makes it so electrical Stuff can be done on its own thread
-	public void SetElectricalData(ElectricalOIinheritance inElectricalData)
+	public void ServerSetLocalPosition(Vector3Int value)
 	{
-		//Logger.Log("seting " + this.name);
-		electricalData = inElectricalData;
+		if (LocalPositionServer == value)
+			return;
+		if (objectLayer)
+		{
+			objectLayer.ServerObjects.Remove(LocalPositionServer, this);
+			if (value != TransformState.HiddenPos)
+			{
+				objectLayer.ServerObjects.Add(value, this);
+			}
+		}
+
+		LocalPositionServer = value;
 	}
 
-	//This makes it so electrical Stuff can be done on its own thread
-	public void SetPipeData(Pipes.PipeData InPipeData)
+	public void ClientSetLocalPosition(Vector3Int value)
 	{
-		//Logger.Log("seting " + this.name);
-		pipeData = InPipeData;
+		if (LocalPositionClient == value)
+			return;
+		bool appeared = LocalPositionClient == TransformState.HiddenPos && value != TransformState.HiddenPos;
+		bool disappeared = LocalPositionClient != TransformState.HiddenPos && value == TransformState.HiddenPos;
+		if (objectLayer)
+		{
+			objectLayer.ClientObjects.Remove(LocalPositionClient, this);
+			if (value != TransformState.HiddenPos)
+			{
+				objectLayer.ClientObjects.Add(value, this);
+			}
+		}
+
+		LocalPositionClient = value;
+
+		if (appeared)
+		{
+			OnAppearClient.Invoke();
+		}
+
+		if (disappeared)
+		{
+			OnDisappearClient.Invoke();
+		}
 	}
 
 	/// <summary>
@@ -358,34 +319,30 @@ public class RegisterTile : NetworkBehaviour, IServerDespawn
 	/// </summary>
 	/// <param name="newNetworkedMatrixNetID"></param>
 	[Server]
-	public void ServerSetNetworkedMatrixNetID(uint newNetworkedMatrixNetID)
+	public bool ServerSetNetworkedMatrixNetID(uint newNetworkedMatrixNetID)
 	{
+		if(networkedMatrixNetId == newNetworkedMatrixNetID)
+		{
+			return false;
+		}
 		LogMatrixDebug("ServerSetNetworkedMatrixNetID");
 		networkedMatrixNetId = newNetworkedMatrixNetID;
+		return true;
 	}
 
+
 	/// <summary>
-	/// Invoked when parentNetId is changed on the server, updating the client's parentNetId. This
-	/// applies the change by moving this object to live in the same objectlayer and matrix as that
-	/// of the new parentid.
-	/// provided netId
+	/// Invoked when networkedMatrixNetId is changed on the server, updating the client's networkedMatrixNetId.
 	/// </summary>
 	/// <param name="oldNetworkMatrixId"></param>
 	/// <param name="newNetworkedMatrixNetID">uint of the new parent</param>
 	private void SyncNetworkedMatrixNetId(uint oldNetworkMatrixId, uint newNetworkedMatrixNetID)
 	{
-		//LogMatrixDebug($"Sync parent net id {networkedMatrixNetId}");
-		EnsureInit();
-		//note: previously we returned immediately if the new ID matched our current networkMatrixNetId,
-		//but because Mirror actually sets our networkMatrixNetId for us prior to this hook being called
-		//this would incorrectly skip the registration logic. This issue seems to only have
-		//occurred after upgrading mirror to the Feb 04, 20202 release .
-		//It's not really a performance concern since this sort of update happens rarely
-		if (newNetworkedMatrixNetID == NetId.Invalid || newNetworkedMatrixNetID == NetId.Empty) return;
+		if (Initialized == false)
+			return;
 
-		this.networkedMatrixNetId = newNetworkedMatrixNetID;
-
-		NetworkedMatrix.InvokeWhenInitialized(networkedMatrixNetId, FinishNetworkedMatrixRegistration);
+		networkedMatrixNetId = newNetworkedMatrixNetID;
+		NetworkedMatrix.InvokeWhenInitialized(networkedMatrixNetId, FinishNetworkedMatrixRegistration); //note: we dont actually wait for init here anymore
 	}
 
 	private void FinishNetworkedMatrixRegistration(NetworkedMatrix networkedMatrix)
@@ -393,16 +350,22 @@ public class RegisterTile : NetworkBehaviour, IServerDespawn
 		//if we had any spin rotation, preserve it,
 		//otherwise all objects should always have upright local rotation
 		var rotation = transform.rotation;
-		//only CNTs can have spin rotation
-		bool hadSpinRotation = cnt && Quaternion.Angle(transform.localRotation, Quaternion.identity) > 5;
-		objectLayer?.ClientObjects.Remove(LocalPositionClient, this);
-		objectLayer?.ServerObjects.Remove(LocalPositionServer, this);
+		//only customNetTransform can have spin rotation
+		bool hadSpinRotation = customNetTransform && Quaternion.Angle(transform.localRotation, Quaternion.identity) > 5;
 
-		LocalPositionClient = TransformState.HiddenPos;
-		LocalPositionServer = TransformState.HiddenPos;
+		var newObjectLayer = networkedMatrix.GetComponentInChildren<ObjectLayer>();
+		if (objectLayer != newObjectLayer)
+		{
+			if (objectLayer)
+			{
+				objectLayer.ServerObjects.Remove(LocalPositionServer, this);
+				objectLayer.ClientObjects.Remove(LocalPositionClient, this);
+			}
+			objectLayer = newObjectLayer;
+		}
 
-		objectLayer = networkedMatrix.GetComponentInChildren<ObjectLayer>();
 		transform.SetParent(objectLayer.transform, true);
+
 		//preserve absolute rotation if there was spin rotation
 		if (hadSpinRotation)
 		{
@@ -415,7 +378,7 @@ public class RegisterTile : NetworkBehaviour, IServerDespawn
 		}
 
 		//this will fire parent change hooks so we do it last
-		Matrix = networkedMatrix.GetComponentInChildren<Matrix>();
+		SetMatrix(networkedMatrix.GetComponentInChildren<Matrix>());
 
 
 		//if we are hidden, remain hidden, otherwise update because we have a new parent
@@ -424,110 +387,78 @@ public class RegisterTile : NetworkBehaviour, IServerDespawn
 			UpdatePositionClient();
 		}
 
-		if (LocalPositionServer != TransformState.HiddenPos)
+		if (isServer)
 		{
 			UpdatePositionServer();
 		}
 
 		OnParentChangeComplete.Invoke();
-
-		if (!initialized)
-		{
-			initialized = true;
-		}
 	}
 
-	[ContextMenu("Force Register")]
-	private void ForceRegister()
+	private void SetMatrix(Matrix value)
 	{
-		//TODO: Not sure if this is okay, as it sets the Matrix but it doesn't go through
-		//the full matrix init logic. It might be better to call FinishNetworkedMatrixRegistration after
-		//setting the matrix, but that would need to be tested.
-		LogMatrixDebug("ForceRegister");
-		if (transform.parent != null)
+		if (value)
 		{
-			// in most scenes ObjectLayer script is placed on parent
-			objectLayer = transform.parent.GetComponent<ObjectLayer>() ??
-			              transform.parent.GetComponentInParent<ObjectLayer>();
-			Matrix = transform.parent.GetComponentInParent<Matrix>();
-
-			LocalPositionServer = TransformState.HiddenPos;
-			LocalPositionClient = TransformState.HiddenPos;
-
-			LocalPositionServer = Vector3Int.RoundToInt(transform.localPosition);
-			LocalPositionClient = Vector3Int.RoundToInt(transform.localPosition);
-		}
-	}
-
-	private List<Action<MatrixInfo>> matrixManagerDependantActions = new List<Action<MatrixInfo>>();
-	private bool listenerAdded = false;
-	private MatrixInfo pendingInfo;
-
-	/// <summary>
-	/// If your start initialization relies on Matrix being
-	/// initialized with the correct MatrixInfo then send the action here.
-	/// It will wait until the matrix is properly configured
-	/// before calling the action
-	/// </summary>
-	/// <param name="initAction">Action to call when the Matrix is configured</param>
-	public void WaitForMatrixInit(Action<MatrixInfo> initAction)
-	{
-		if (matrix == null)
-		{
-			Logger.LogWarning("RegisterTile tried to wait for Matrix to init, but Matrix was null", Category.Matrix);
-			return;
-		}
-
-		matrixManagerDependantActions.Add(initAction);
-		if (!matrix.MatrixInfoConfigured)
-		{
-			if (!listenerAdded)
+			//LogMatrixDebug($"Matrix set from {matrix} to {value}");
+			if (Matrix != null && Matrix.MatrixMove != null)
 			{
-				listenerAdded = true;
-				matrix.OnConfigLoaded += MatrixManagerInitAction;
+				Matrix.MatrixMove.MatrixMoveEvents.OnRotate.RemoveListener(OnRotate);
+			}
+
+			Matrix = value;
+			if (Matrix != null && Matrix.MatrixMove != null)
+			{
+				//LogMatrixDebug($"Registered OnRotate to {matrix}");
+				Matrix.MatrixMove.MatrixMoveEvents.OnRotate.AddListener(OnRotate);
+				if (isServer)
+				{
+					OnRotate(new MatrixRotationInfo(Matrix.MatrixMove, Matrix.MatrixMove.FacingOffsetFromInitial,
+						NetworkSide.Server, RotationEvent.Register));
+				}
+
+				OnRotate(new MatrixRotationInfo(Matrix.MatrixMove, Matrix.MatrixMove.FacingOffsetFromInitial,
+					NetworkSide.Client, RotationEvent.Register));
+			}
+
+
+			//setting objects in storage to the same matrix
+			if (isServer)
+			{
+				if (TryGetComponent<ItemStorage>(out var itemStorage))
+				{
+					foreach (var itemSlot in itemStorage.GetItemSlots())
+					{
+						if (itemSlot.Item)
+						{
+							var itemSlotRegisterItem = itemSlot.Item.GetComponent<RegisterItem>();
+							itemSlotRegisterItem.Matrix = Matrix;
+						}
+					}
+				}
+
+				if (TryGetComponent<DynamicItemStorage>(out var dynamicItemStorage))
+				{
+					foreach (var itemSlot in dynamicItemStorage.GetItemSlots())
+					{
+						if (itemSlot.Item)
+						{
+							var itemSlotRegisterItem = itemSlot.Item.GetComponent<RegisterItem>();
+							itemSlotRegisterItem.Matrix = Matrix;
+						}
+					}
+				}
 			}
 		}
-		else
-		{
-			MatrixManagerInitAction(matrix.MatrixInfo);
-		}
-	}
-
-	private void MatrixManagerInitAction(MatrixInfo matrixInfo)
-	{
-		if (!MatrixManager.IsInitialized)
-		{
-			pendingInfo = matrixInfo;
-			return;
-		}
-
-		if (listenerAdded)
-		{
-			listenerAdded = false;
-			matrix.OnConfigLoaded -= MatrixManagerInitAction;
-		}
-
-		foreach (var a in matrixManagerDependantActions)
-		{
-			a.Invoke(matrixInfo);
-		}
-
-		matrixManagerDependantActions.Clear();
-	}
-
-	void MatrixManagerInit()
-	{
-		MatrixManagerInitAction(pendingInfo);
 	}
 
 	public void UnregisterClient()
 	{
-		LocalPositionClient = TransformState.HiddenPos;
+		ClientSetLocalPosition(TransformState.HiddenPos);
 	}
 
 	public void UnregisterServer()
 	{
-		LocalPositionServer = TransformState.HiddenPos;
+		ServerSetLocalPosition(TransformState.HiddenPos);
 	}
 
 	private void OnRotate(MatrixRotationInfo info)
@@ -540,31 +471,34 @@ public class RegisterTile : NetworkBehaviour, IServerDespawn
 		}
 	}
 
-	public virtual void UpdatePositionServer()
+	public void UpdatePositionServer()
 	{
 		var prevPosition = LocalPositionServer;
-		LocalPositionServer = CustomTransform
-			? CustomTransform.Pushable.ServerLocalPosition
-			: transform.localPosition.RoundToInt();
+		if (iPushable != null)
+		{
+			ServerSetLocalPosition(iPushable.ServerLocalPosition);
+		}
+		else
+		{
+			ServerSetLocalPosition(transform.localPosition.RoundToInt());
+		}
 		if (prevPosition != LocalPositionServer)
 		{
 			OnLocalPositionChangedServer.Invoke(LocalPositionServer);
 			CheckSameMatrixRelationships();
 		}
-
-		//LogMatrixDebug($"Server position from {prevPosition} to {LocalPositionServer}");
 	}
 
-	public virtual void UpdatePositionClient()
+	public void UpdatePositionClient()
 	{
-		//var prevPosition = LocalPositionClient;
-
-		LocalPositionClient = CustomTransform
-			? CustomTransform.Pushable.ClientLocalPosition
-			: transform.localPosition.RoundToInt();
-
-
-		//LogMatrixDebug($"Client position from {LocalPositionClient} to {prevPosition}");
+		if (iPushable != null)
+		{
+			ClientSetLocalPosition(iPushable.ClientLocalPosition);
+		}
+		else
+		{
+			ClientSetLocalPosition(transform.localPosition.RoundToInt());
+		}
 		CheckSameMatrixRelationships();
 	}
 
@@ -577,7 +511,7 @@ public class RegisterTile : NetworkBehaviour, IServerDespawn
 	public void _AddSpatialRelationship(BaseSpatialRelationship toAdd)
 	{
 		//are we across matrices?
-		if (toAdd.Other(this).matrix != Matrix)
+		if (toAdd.Other(this).Matrix != Matrix)
 		{
 			AddCrossMatrixRelationship(toAdd);
 		}
@@ -801,11 +735,31 @@ public class RegisterTile : NetworkBehaviour, IServerDespawn
 		return false;
 	}
 
+	public virtual bool DoesNotBlockClick(Vector3Int reachingFrom, bool isServer)
+	{
+		return true;
+	}
+
 	///<summary> Is it passable when approaching from outside? </summary>
 	public virtual bool IsAtmosPassable(Vector3Int enteringFrom, bool isServer)
 	{
 		return true;
 	}
+
+	//This makes it so electrical Stuff can be done on its own thread
+	public void SetElectricalData(ElectricalOIinheritance inElectricalData)
+	{
+		//Logger.Log("seting " + this.name);
+		electricalData = inElectricalData;
+	}
+
+	//This makes it so electrical Stuff can be done on its own thread
+	public void SetPipeData(PipeData InPipeData)
+	{
+		//Logger.Log("seting " + this.name);
+		pipeData = InPipeData;
+	}
+
 
 	/// <summary>
 	/// Logs a message to Matrix logging category only if
@@ -834,8 +788,3 @@ public class RegisterTile : NetworkBehaviour, IServerDespawn
 		}
 	}
 }
-
-/// <summary>
-/// Event fired when current matrix is changing. Passes the new matrix.
-/// </summary>
-public class MatrixChangeEvent : UnityEvent<Matrix> { };

@@ -1,47 +1,31 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using Player.Movement;
 using UnityEngine;
 
 namespace HealthV2
 {
-	public class BodyFat : BodyPartModification, PlayerMove.IMovementEffect
+	public class BodyFat : Organ, IMovementEffect
 	{
-		public float MaxRunSpeedDebuff = -2;
-		public float MaxWalkingDebuff = -1.5f;
-		public float MaxCrawlDebuff = -0.2f;
+		[SerializeField] private float maxRunSpeedDebuff = -2;
+		[SerializeField] private float maxWalkingDebuff = -1.5f;
+		[SerializeField] private float maxCrawlDebuff = -0.2f;
 
-		private float runSpeedDebuff;
-		private float WalkingDebuff;
-		private float CrawlDebuff;
+		public float RunningSpeedModifier { get; private set; }
 
-		public float RunningAdd
-		{
-			get => runSpeedDebuff;
-			set { }
-		}
+		public float WalkingSpeedModifier { get; private set; }
 
-		public float WalkingAdd
-		{
-			get => WalkingDebuff;
-			set { }
-		}
-
-
-		public float CrawlAdd
-		{
-			get => CrawlDebuff;
-			set { }
-		}
+		public float CrawlingSpeedModifier { get; private set; }
 
 
 		public Stomach RelatedStomach;
 
-		public float ReleaseNutrimentAtPercent = 0.20f;
+		public float ReleaseNutrimentAtPer1UBloodFlow = 0.005f;
 
-		public float AbsorbNutrimentAtPercent = 0.35f;
+		public float AbsorbNutrimentAtPer1UBloodFlow  = 0.01f;
 
-		public float ReleaseAmount = 1f;
+		public float ReleaseAmount = 5f;
 
 		public float MaxAmount = 500;
 
@@ -58,9 +42,10 @@ namespace HealthV2
 		public override void ImplantPeriodicUpdate()
 		{
 			base.ImplantPeriodicUpdate();
+			// Logger.Log("Absorbing >" + Absorbing);
 			float NutrimentPercentage = (RelatedPart.BloodContainer[RelatedPart.Nutriment] / RelatedPart.BloodContainer.ReagentMixTotal);
-			// Logger.Log("NutrimentPercentage >" + NutrimentPercentage);
-			if (NutrimentPercentage < ReleaseNutrimentAtPercent)
+			//Logger.Log("NutrimentPercentage >" + NutrimentPercentage);
+			if (NutrimentPercentage < ReleaseNutrimentAtPer1UBloodFlow * RelatedPart.BloodThroughput)
 			{
 				float ToRelease = ReleaseAmount;
 				if (ToRelease > AbsorbedAmount)
@@ -73,7 +58,7 @@ namespace HealthV2
 				isFreshBlood = false;
 				// Logger.Log("ToRelease >" + ToRelease);
 			}
-			else if (isFreshBlood && NutrimentPercentage > AbsorbNutrimentAtPercent && AbsorbedAmount < MaxAmount)
+			else if (isFreshBlood && NutrimentPercentage > AbsorbNutrimentAtPer1UBloodFlow *  RelatedPart.BloodThroughput && AbsorbedAmount < MaxAmount)
 			{
 				float ToAbsorb = RelatedPart.BloodContainer[RelatedPart.Nutriment];
 				if (AbsorbedAmount + ToAbsorb > MaxAmount)
@@ -86,27 +71,42 @@ namespace HealthV2
 				// Logger.Log("Absorbing >" + Absorbing);
 			}
 
-			// Logger.Log("AbsorbedAmount >" + AbsorbedAmount);
+			//Logger.Log("AbsorbedAmount >" + AbsorbedAmount);
 			//TODOH Proby doesn't need to be updated so often
 			if (DebuffCutInPoint < AbsorbedAmount)
 			{
 				WasApplyingDebuff = true;
 				float DeBuffMultiplier = (AbsorbedAmount - DebuffCutInPoint) / (MaxAmount - DebuffCutInPoint);
 				// Logger.Log("DeBuffMultiplier >" + DeBuffMultiplier);
-				runSpeedDebuff = MaxRunSpeedDebuff * DeBuffMultiplier;
-				WalkingDebuff = MaxWalkingDebuff * DeBuffMultiplier;
-				CrawlDebuff = MaxCrawlDebuff * DeBuffMultiplier;
+				RunningSpeedModifier = maxRunSpeedDebuff * DeBuffMultiplier;
+				WalkingSpeedModifier = maxWalkingDebuff * DeBuffMultiplier;
+				CrawlingSpeedModifier = maxCrawlDebuff * DeBuffMultiplier;
 				var playerHealthV2 = RelatedPart.HealthMaster as PlayerHealthV2;
 				if (playerHealthV2 != null)
 				{
 					playerHealthV2.PlayerMove.UpdateSpeeds();
 				}
 			}
+
+			if (AbsorbedAmount == 0)
+			{
+				RelatedPart.HungerState = HungerState.Malnourished;
+			}
+			else
+			{
+				RelatedPart.HungerState = HungerState.Normal;
+			}
 		}
 
 		public override void BloodWasPumped()
 		{
 			isFreshBlood = true;
+		}
+
+		[NaughtyAttributes.Button()]
+		public void BecomeSkinny()
+		{
+			AbsorbedAmount = 0;
 		}
 
 		public override void Initialisation()
@@ -119,10 +119,10 @@ namespace HealthV2
 			}
 		}
 
-		public override void RemovedFromBody(LivingHealthMasterBase livingHealthMasterBase)
+		public override void RemovedFromBody(LivingHealthMasterBase livingHealth)
 		{
-			base.RemovedFromBody(livingHealthMasterBase);
-			var playerHealthV2 = livingHealthMasterBase as PlayerHealthV2;
+			base.RemovedFromBody(livingHealth);
+			var playerHealthV2 = livingHealth as PlayerHealthV2;
 			if (playerHealthV2 != null)
 			{
 				playerHealthV2.PlayerMove.RemoveModifier(this);

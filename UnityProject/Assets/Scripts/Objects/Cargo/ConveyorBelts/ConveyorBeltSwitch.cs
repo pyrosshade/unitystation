@@ -1,16 +1,19 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Mirror;
 using ScriptableObjects;
+using Systems.Interaction;
+using Systems.ObjectConnection;
+
 
 namespace Construction.Conveyors
 {
 	/// <summary>
 	/// Used for controlling conveyor belts.
 	/// </summary>
-	public class ConveyorBeltSwitch : NetworkBehaviour, ICheckedInteractable<HandApply>, ISetMultitoolSlaveMultiMaster
+	public class ConveyorBeltSwitch : MonoBehaviour, IServerLifecycle, IMultitoolMultiMasterSlaveable,
+			ICheckedInteractable<HandApply>, ICheckedInteractable<AiActivate>
 	{
 		[Tooltip("Assign the conveyor belts this switch should control.")]
 		[SerializeField]
@@ -33,16 +36,16 @@ namespace Construction.Conveyors
 			spriteHandler = GetComponentInChildren<SpriteHandler>();
 		}
 
-		private void OnDisable()
-		{
-			if (!isServer) return;
-
-			SetState(SwitchState.Off);
-		}
-
-		public override void OnStartServer()
+		public void OnSpawnServer(SpawnInfo info)
 		{
 			SetBeltInfo();
+		}
+
+		public void OnDespawnServer(DespawnInfo info)
+		{
+			// turn off conveyors
+			SetState(SwitchState.Off);
+			UpdateManager.Remove(CallbackType.PERIODIC_UPDATE, UpdateMe);
 		}
 
 		#endregion Lifecycle
@@ -198,7 +201,7 @@ namespace Construction.Conveyors
 		private MultitoolConnectionType conType = MultitoolConnectionType.Conveyor;
 		public MultitoolConnectionType ConType => conType;
 
-		public void SetMasters(List<ISetMultitoolMaster> Imasters)
+		public void SetMasters(List<IMultitoolMasterable> Imasters)
 		{
 			List<ConveyorBelt> InnewConveyorBelts = new List<ConveyorBelt>();
 			foreach (var Conveyor in Imasters)
@@ -209,5 +212,23 @@ namespace Construction.Conveyors
 		}
 
 		#endregion Multitool Interaction
+
+		#region Ai Interaction
+
+		public bool WillInteract(AiActivate interaction, NetworkSide side)
+		{
+			if (interaction.ClickType != AiActivate.ClickTypes.NormalClick) return false;
+
+			if (DefaultWillInteract.AiActivate(interaction, side) == false) return false;
+
+			return true;
+		}
+
+		public void ServerPerformInteraction(AiActivate interaction)
+		{
+			ToggleSwitch();
+		}
+
+		#endregion
 	}
 }

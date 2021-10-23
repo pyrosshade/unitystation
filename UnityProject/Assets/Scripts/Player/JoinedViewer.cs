@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Net.NetworkInformation;
+using Systems;
 using Mirror;
 using Newtonsoft.Json;
 using UnityEngine;
@@ -68,19 +69,14 @@ public class JoinedViewer : NetworkBehaviour
 			return;
 		}
 
-		// Check if they have a player to rejoin.
-		GameObject loggedOffPlayer = PlayerList.Instance.TakeLoggedOffPlayerbyClientId(unverifiedClientId, unverifiedUserid);
+		//Send to client their job ban entries
+		var jobBanEntries = PlayerList.Instance.ClientAskingAboutJobBans(unverifiedConnPlayer);
+		PlayerList.ServerSendsJobBanDataMessage.Send(unverifiedConnPlayer.Connection, jobBanEntries);
 
-		// If the player does not yet have an in-game object to control, they'll probably have a
-		// JoinedViewer assigned as they were only in the lobby. If so, destroy it and use the new one.
-		if (loggedOffPlayer != null)
+		//Send to client the current crew job counts
+		if (CrewManifestManager.Instance != null)
 		{
-			var checkForViewer = loggedOffPlayer.GetComponent<JoinedViewer>();
-			if (checkForViewer)
-			{
-				Destroy(loggedOffPlayer);
-				loggedOffPlayer = null;
-			}
+			SetJobCountsMessage.SendToPlayer(CrewManifestManager.Instance.Jobs, unverifiedConnPlayer);
 		}
 
 		UpdateConnectedPlayersMessage.Send();
@@ -98,21 +94,27 @@ public class JoinedViewer : NetworkBehaviour
 			}
 		}
 
-		// If there's a logged off player, we will force them to rejoin. Previous logic allowed client to re-enter
-		// their body or not, which should not be up to the client!
-		if (loggedOffPlayer != null)
+		// Check if they have a player to rejoin before creating a new ConnectedPlayer
+		var loggedOffPlayer = PlayerList.Instance.RemovePlayerbyClientId(unverifiedClientId, unverifiedUserid, unverifiedConnPlayer);
+		var checkForViewer = loggedOffPlayer?.GameObject.GetComponent<JoinedViewer>();
+		if (checkForViewer)
 		{
-			StartCoroutine(WaitForLoggedOffObserver(loggedOffPlayer));
+			Destroy(loggedOffPlayer.GameObject);
+			loggedOffPlayer = null;
+		}
+
+		// If there's a logged off player, we will force them to rejoin their body
+		if (loggedOffPlayer == null)
+		{
+			TargetLocalPlayerSetupNewPlayer(connectionToClient, GameManager.Instance.CurrentRoundState);
 		}
 		else
 		{
-			TargetLocalPlayerSetupNewPlayer(connectionToClient, GameManager.Instance.CurrentRoundState);
+			StartCoroutine(WaitForLoggedOffObserver(loggedOffPlayer.GameObject));
 		}
 
 		PlayerList.Instance.CheckAdminState(unverifiedConnPlayer, unverifiedUserid);
 		PlayerList.Instance.CheckMentorState(unverifiedConnPlayer, unverifiedUserid);
-
-		PlayerList.ClientJobBanDataMessage.Send(unverifiedUserid);
 	}
 
 	/// <summary>
@@ -132,13 +134,24 @@ public class JoinedViewer : NetworkBehaviour
 			// TODO: if this issue persists, should probably send the poor player a message about failing to rejoin.
 			yield break;
 		}
-		while (!netIdentity.observers.ContainsKey(this.connectionToClient.connectionId))
+
+		while (netIdentity != null && connectionToClient != null && !netIdentity.observers.ContainsKey(this.connectionToClient.connectionId))
 		{
 			yield return WaitFor.EndOfFrame;
 		}
-		yield return WaitFor.EndOfFrame;
-		TargetLocalPlayerRejoinUI(connectionToClient);
-		PlayerSpawn.ServerRejoinPlayer(this, loggedOffPlayer);
+
+		if (netIdentity != null && connectionToClient != null)
+		{
+			yield return WaitFor.EndOfFrame;
+			TargetLocalPlayerRejoinUI(connectionToClient);
+			PlayerSpawn.ServerRejoinPlayer(this, loggedOffPlayer);
+		}
+		else
+		{
+			Logger.LogError($"No {nameof(NetworkIdentity)} component on {loggedOffPlayer}! " +
+			                "Turns out the NetID was destroyed for some reason while waiting for to be an observer" +
+			                "of the logged off player", Category.Connections);
+		}
 	}
 
 	[TargetRpc]

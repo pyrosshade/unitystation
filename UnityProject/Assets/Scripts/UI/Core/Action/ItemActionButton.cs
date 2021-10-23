@@ -57,7 +57,7 @@ namespace UI.Action
 
 		public void CallActionServer(ConnectedPlayer SentByPlayer)
 		{
-			if (Validations.CanInteract(SentByPlayer.GameObject, NetworkSide.Server, allowSoftCrit: true))
+			if (Validations.CanInteract(SentByPlayer.Script , NetworkSide.Server, true))
 			{
 				ServerActionClicked?.Invoke();
 				UpdateButtonSprite(true);
@@ -70,14 +70,6 @@ namespace UI.Action
 			ClientSetActionButtonVisibility(shouldShow);
 
 			if (PlayerManager.LocalPlayerScript == null || PlayerManager.LocalPlayerScript.playerHealth == null) return;
-			if (shouldShow)
-			{
-				PlayerManager.LocalPlayerScript.playerHealth.OnDeathNotifyEvent += OnDeath;
-			}
-			else
-			{
-				PlayerManager.LocalPlayerScript.playerHealth.OnDeathNotifyEvent -= OnDeath;
-			}
 		}
 
 		public void ClientSetActionButtonVisibility(bool isVisible)
@@ -112,7 +104,11 @@ namespace UI.Action
 			// ... not the client that owns this object
 			if (pickupable.ItemSlot.LocalUISlot == null) return false;
 			// ... item is not in an allowed slot
-			if (!allowedSlots.HasFlag(ItemSlot.GetFlaggedSlot(pickupable.ItemSlot.NamedSlot.Value))) return false;
+			if (pickupable.ItemSlot.NamedSlot != null)
+			{
+				if (!allowedSlots.HasFlag(ItemSlot.GetFlaggedSlot(pickupable.ItemSlot.NamedSlot.Value))) return false;
+			}
+
 
 			return true;
 		}

@@ -2,16 +2,17 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Light2D;
-using Pipes;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.Tilemaps;
-using Systems.Atmospherics;
-using HealthV2;
 using TileManagement;
-using Systems.Electricity;
 using Tilemaps.Behaviours.Layers;
+using Light2D;
+using HealthV2;
+using Systems.Atmospherics;
+using Systems.Electricity;
+using Systems.Pipes;
+
 
 /// <summary>
 /// Behavior which indicates a matrix - a contiguous grid of tiles.
@@ -29,7 +30,7 @@ public class Matrix : MonoBehaviour
 
 	private TileList serverObjects;
 
-	private TileList ServerObjects => serverObjects ??
+	public TileList ServerObjects => serverObjects ??
 	                                  (serverObjects = ((ObjectLayer) MetaTileMap.Layers[LayerType.Objects])
 		                                  .ServerObjects);
 
@@ -92,6 +93,8 @@ public class Matrix : MonoBehaviour
 	private NetworkedMatrix networkedMatrix;
 	public NetworkedMatrix NetworkedMatrix => networkedMatrix;
 
+	[NonSerialized] public bool Initialized;
+
 	private void Awake()
 	{
 		metaTileMap = GetComponent<MetaTileMap>();
@@ -135,7 +138,7 @@ public class Matrix : MonoBehaviour
 
 	void Start()
 	{
-		MatrixManager.RegisterMatrix(this, IsSpaceMatrix, IsMainStation, IsLavaLand);
+		StartCoroutine(MatrixManager.Instance.RegisterWhenReady(this));
 	}
 
 	public void CompressAllBounds()
@@ -245,6 +248,11 @@ public class Matrix : MonoBehaviour
 		return MetaTileMap.HasTile(position, LayerType.Windows);
 	}
 
+	public bool IsGrillAt(Vector3Int position, bool isServer)
+	{
+		return MetaTileMap.HasTile(position, LayerType.Grills);
+	}
+
 	public bool IsEmptyAt(Vector3Int position, bool isServer)
 	{
 		return MetaTileMap.IsEmptyAt(position, isServer);
@@ -298,27 +306,32 @@ public class Matrix : MonoBehaviour
 		return true;
 	}
 
-	/// <summary>
-	/// Efficient way of iterating through the register tiles at a particular position which
-	/// also is safe against modifications made to the list of tiles while the action is running.
-	/// The limitation compared to Get<> is it can only get RegisterTiles, but the benefit is it avoids
-	/// GetComponent so there's no GC. The OTHER benefit is that normally iterating through these
-	/// would throw an exception if the RegisterTiles at this position were modified, such as
-	/// being destroyed are created. This method uses a locking mechanism to avoid
-	/// such issues.
-	/// </summary>
-	/// <param name="localPosition"></param>
-	/// <returns></returns>
-	public void ForEachRegisterTileSafe(IRegisterTileAction action, Vector3Int localPosition, bool isServer)
-	{
-		(isServer ? ServerObjects : ClientObjects).ForEachSafe(action, localPosition);
-	}
-
-
 	public IEnumerable<RegisterTile> GetRegisterTile(Vector3Int localPosition, bool isServer)
 	{
 		return (isServer ? ServerObjects : ClientObjects).Get(localPosition);
 	}
+
+	//Has to inherit from register tile
+	public IEnumerable<T> GetAs<T>(Vector3Int localPosition, bool isServer) where T : class
+	{
+		if (!(isServer ? ServerObjects : ClientObjects).HasObjects(localPosition))
+		{
+			return Enumerable.Empty<T>(); //?
+		}
+
+		var filtered = new List<T>();
+		foreach (RegisterTile t in (isServer ? ServerObjects : ClientObjects).Get(localPosition))
+		{
+			T x = t as T;
+			if (x != null)
+			{
+				filtered.Add(x);
+			}
+		}
+
+		return filtered;
+	}
+
 
 	public IEnumerable<T> Get<T>(Vector3Int localPosition, bool isServer)
 	{
@@ -404,7 +417,7 @@ public class Matrix : MonoBehaviour
 	public IEnumerable<Objects.Disposals.DisposalPipe> GetDisposalPipesAt(Vector3Int position)
 	{
 		// Return a list, because we may allow disposal pipes to overlap each other - NS with EW e.g.
-		return UnderFloorLayer.GetAllTilesByType<Objects.Disposals.DisposalPipe>(position);
+		return metaTileMap.GetAllTilesByType<Objects.Disposals.DisposalPipe>(position, LayerType.Underfloor);
 	}
 
 	public List<IntrinsicElectronicData> GetElectricalConnections(Vector3Int position)
@@ -475,16 +488,18 @@ public class Matrix : MonoBehaviour
 		var checkPos = position;
 		checkPos.z = 0;
 		var metaData = metaDataLayer.Get(checkPos, true);
-		var newdata = new ElectricalMetaData();
-		newdata.Initialise(electricalCableTile, metaData, position, this);
-		metaData.ElectricalData.Add(newdata);
 		if (AddTile)
 		{
 			if (electricalCableTile != null)
 			{
-				AddUnderFloorTile(position, electricalCableTile, Matrix4x4.identity, Color.white);
+				position = TileChangeManager.UpdateTile(position, electricalCableTile);
 			}
 		}
+
+		var newdata = new ElectricalMetaData();
+		newdata.Initialise(electricalCableTile, metaData, position, this);
+		metaData.ElectricalData.Add(newdata);
+
 	}
 
 	public void EditorAddElectricalNode(Vector3Int position, WireConnect wireConnect)
@@ -504,7 +519,7 @@ public class Matrix : MonoBehaviour
 
 		if (Tile != null)
 		{
-			AddUnderFloorTile(position, Tile, Matrix4x4.identity, Color.white);
+			TileChangeManager.UpdateTile(position, Tile, Matrix4x4.identity, Color.white);
 		}
 	}
 
@@ -533,25 +548,6 @@ public class Matrix : MonoBehaviour
 		return (GetRadiationLevel(new Vector3Int(localPosition.x, localPosition.y, 0)));
 	}
 
-	public void AddUnderFloorTile(Vector3Int position, LayerTile tile, Matrix4x4 transformMatrix, Color color)
-	{
-		if (UnderFloorLayer == null)
-		{
-			underFloorLayer = GetComponentInChildren<UnderFloorLayer>();
-		}
-
-		UnderFloorLayer.SetTile(position, tile, transformMatrix, color);
-	}
-
-	public void RemoveUnderFloorTile(Vector3Int position, LayerTile tile, bool UseSpecifiedLocation = false)
-	{
-		if (UnderFloorLayer == null)
-		{
-			underFloorLayer = GetComponentInChildren<UnderFloorLayer>();
-		}
-
-		UnderFloorLayer.RemoveSpecifiedTile(position, tile,UseSpecifiedLocation);
-	}
 
 	// Visual debug
 	private static Color[] colors = new[]

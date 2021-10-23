@@ -92,10 +92,10 @@ MonoBehaviour:
   NetworkThis: 0
   SubCatalogue: []
   PresentSpriteSet: {fileID: 0}
+  randomInitialSprite: 0
   pushTextureOnStartUp: 0
-  variantIndex: 0
+  initialVariantIndex: 0
   palette: []
-  Sprites: []
 --- !u!114 &2411645831157785180
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -109,5 +109,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   SpriteHandler: {fileID: 4830751456365533255}
-  SpriteOrder:
+  spriteOrder:
     Orders: 00000000000000000000000000000000
+  spriteRenderer: {fileID: 0}

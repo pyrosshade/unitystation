@@ -49,11 +49,17 @@ public static class PlayerUtils
 
 				ps.playerHealth.ResetDamageAll();
 				ps.registerTile.ServerStandUp();
-				var left = Spawn.ServerPrefab("Bike Horn").GameObject;
-				var right = Spawn.ServerPrefab("Bike Horn").GameObject;
 
-				Inventory.ServerAdd(left, player.Script.ItemStorage.GetNamedItemSlot(NamedSlot.leftHand));
-				Inventory.ServerAdd(right, player.Script.ItemStorage.GetNamedItemSlot(NamedSlot.rightHand));
+
+				foreach (var itemSlot in player.Script.DynamicItemStorage.GetNamedItemSlots(NamedSlot.leftHand))
+				{
+					Inventory.ServerAdd(Spawn.ServerPrefab("Bike Horn").GameObject, itemSlot);
+				}
+
+				foreach (var itemSlot in player.Script.DynamicItemStorage.GetNamedItemSlots(NamedSlot.rightHand))
+				{
+					Inventory.ServerAdd(Spawn.ServerPrefab("Bike Horn").GameObject, itemSlot);
+				}
 			}
 			else
 			{
@@ -73,6 +79,6 @@ public static class PlayerUtils
 		}
 		AudioSourceParameters audioSourceParameters = new AudioSourceParameters(pitch: Random.Range(0.2f,0.5f));
 		ShakeParameters shakeParameters = new ShakeParameters(true, 64, 30);
-		_ = SoundManager.PlayNetworked(SingletonSOSounds.Instance.ClownHonk, audioSourceParameters, true, shakeParameters);
+		_ = SoundManager.PlayNetworked(CommonSounds.Instance.ClownHonk, audioSourceParameters, true, shakeParameters);
 	}
 }

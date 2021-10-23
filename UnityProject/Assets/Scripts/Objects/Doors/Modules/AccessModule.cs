@@ -1,5 +1,8 @@
-﻿using UnityEngine;
+using Systems.Clearance;
+ using System.Collections.Generic;
+using UnityEngine;
 using Systems.Electricity;
+using Initialisation;
 using Random = UnityEngine.Random;
 
 namespace Doors.Modules
@@ -8,6 +11,7 @@ namespace Doors.Modules
 	public class AccessModule : DoorModuleBase
 	{
 		private AccessRestrictions accessRestrictions;
+		private ClearanceCheckable clearanceCheckable;
 
 		[SerializeField]
 		[Tooltip("When the door is at low voltage, this is the chance that the access check gives a false positive.")]
@@ -17,39 +21,54 @@ namespace Doors.Modules
 		{
 			base.Awake();
 			accessRestrictions = GetComponent<AccessRestrictions>();
+			clearanceCheckable = GetComponent<ClearanceCheckable>();
 		}
 
-		public override ModuleSignal OpenInteraction(HandApply interaction)
-		{
-			return ModuleSignal.Continue;
-		}
 
-		public override ModuleSignal ClosedInteraction(HandApply interaction)
+		public override ModuleSignal OpenInteraction(HandApply interaction, HashSet<DoorProcessingStates> States)
 		{
-			if (!master.HasPower || !CheckAccess(interaction.Performer))
+			if (interaction != null)
 			{
-				return ModuleSignal.ContinueWithoutDoorStateChange;
+				if (!master.HasPower || !CheckAccess(interaction.Performer))
+				{
+					States.Add(DoorProcessingStates.SoftwarePrevented);
+				}
 			}
 
 			return ModuleSignal.Continue;
 		}
 
-		public override ModuleSignal BumpingInteraction(GameObject byPlayer)
+		public override ModuleSignal ClosedInteraction(HandApply interaction, HashSet<DoorProcessingStates> States)
+		{
+			if (interaction != null)
+			{
+				if (!master.HasPower || !CheckAccess(interaction.Performer))
+				{
+					States.Add(DoorProcessingStates.SoftwarePrevented);
+				}
+			}
+
+			return ModuleSignal.Continue;
+		}
+
+		public override ModuleSignal BumpingInteraction(GameObject byPlayer, HashSet<DoorProcessingStates> States)
 		{
 			if (!master.HasPower || !CheckAccess(byPlayer))
 			{
-				return ModuleSignal.ContinueWithoutDoorStateChange;
+				States.Add(DoorProcessingStates.SoftwarePrevented);
 			}
 
 			return ModuleSignal.Continue;
 		}
 
-		public override bool CanDoorStateChange()
-		{
-			return true;
-		}
 
 		private bool CheckAccess(GameObject player)
+		{
+			return ProcessCheckAccess(player);
+		}
+
+
+		private bool ProcessCheckAccess(GameObject player)
 		{
 			if (accessRestrictions.CheckAccess(player))
 			{
@@ -73,6 +92,7 @@ namespace Doors.Modules
 		private void DenyAccess()
 		{
 			StartCoroutine(master.DoorAnimator.PlayDeniedAnimation());
+			master.DoorAnimator.ServerPlayDeniedSound();
 		}
 	}
 }

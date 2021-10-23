@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using AddressableReferences;
 using Initialisation;
 using Map;
@@ -12,7 +11,7 @@ using Objects.Wallmounts;
 using Strings;
 using UnityEngine;
 using Random = UnityEngine.Random;
-
+using StationObjectives;
 
 namespace Managers
 {
@@ -46,8 +45,8 @@ namespace Managers
 		[NonSerialized] public AlertLevel CurrentAlertLevel;
 
 		//Server only:
-		private List<Vector2> asteroidLocations = new List<Vector2>();
-		private int plasmaOrderRequestAmt;
+		public static List<Vector2> asteroidLocations = new List<Vector2>();
+
 		public DateTime lastAlertChange;
 		public double coolDownAlertChange = 5;
 
@@ -59,9 +58,10 @@ namespace Managers
 		{
 			updateTypes = new Dictionary<UpdateSound, AddressableAudioSource>
 			{
-				{UpdateSound.Notice, SingletonSOSounds.Instance.Notice2},
-				{UpdateSound.Alert, SingletonSOSounds.Instance.Notice1},
-				{UpdateSound.Announce, SingletonSOSounds.Instance.AnnouncementAnnounce}
+				{UpdateSound.Notice, CommonSounds.Instance.Notice2},
+				{UpdateSound.Alert, CommonSounds.Instance.Notice1},
+				{UpdateSound.Announce, CommonSounds.Instance.AnnouncementAnnounce},
+				{UpdateSound.CentComAnnounce, CommonSounds.Instance.AnnouncementCentCom}
 			};
 		}
 
@@ -91,7 +91,7 @@ namespace Managers
 				yield break;
 			}
 
-			_ = SoundManager.PlayNetworked(SingletonSOSounds.Instance.AnnouncementWelcome);
+			_ = SoundManager.PlayNetworked(CommonSounds.Instance.AnnouncementWelcome);
 
 			yield return WaitFor.Seconds(60f);
 
@@ -113,7 +113,6 @@ namespace Managers
 
 			//Shuffle the list:
 			asteroidLocations = asteroidLocations.OrderBy(x => Random.value).ToList();
-			plasmaOrderRequestAmt = Random.Range(5, 50);
 
 
 			// Checks if there will be antags this round and sets the initial update/report
@@ -126,7 +125,7 @@ namespace Managers
 			{
 				SendExtendedUpdate();
 			}
-
+			StationObjectiveManager.Instance.ServerChooseObjective();
 			StartCoroutine(WaitToGenericReport());
 		}
 
@@ -134,11 +133,10 @@ namespace Managers
 		{
 			MakeAnnouncement(ChatTemplates.CentcomAnnounce, string.Format(ReportTemplates.InitialUpdate, ReportTemplates.ExtendedInitial),
 				UpdateSound.Notice);
-			SpawnReports(StationObjectiveReport());
 		}
 		private void SendAntagUpdate()
 		{
-			_ = SoundManager.PlayNetworked(SingletonSOSounds.Instance.AnnouncementIntercept);
+			_ = SoundManager.PlayNetworked(CommonSounds.Instance.AnnouncementIntercept);
 			MakeAnnouncement(
 				ChatTemplates.CentcomAnnounce,
 				string.Format(
@@ -146,7 +144,6 @@ namespace Managers
 					ReportTemplates.AntagInitialUpdate+"\n\n"+
 					ChatTemplates.GetAlertLevelMessage(AlertLevelChange.UpToBlue)),
 				UpdateSound.Alert);
-			SpawnReports(StationObjectiveReport());
 			SpawnReports(ReportTemplates.AntagThreat);
 			ChangeAlertLevel(AlertLevel.Blue, false);
 		}
@@ -216,16 +213,19 @@ namespace Managers
 		/// Makes and announce a written report that will spawn at all comms consoles. Must be called on server.
 		/// </summary>
 		/// <param name="text">String that will be the report body</param>
-		/// <param name="type">Value from the UpdateSound enum to play as sound when announcing</param>
-		public void MakeCommandReport(string text, UpdateSound type)
+		/// <param name="loudAnnouncement">Play as sound when announcing</param>
+		public void MakeCommandReport(string text, bool loudAnnouncement = true)
 		{
 			SpawnReports(text);
 
-			Chat.AddSystemMsgToChat(string.Format(ChatTemplates.CentcomAnnounce, ChatTemplates.CommandNewReport), MatrixManager.MainStationMatrix);
+			if (loudAnnouncement)
+			{
+				Chat.AddSystemMsgToChat(string.Format(ChatTemplates.CentcomAnnounce, ChatTemplates.CommandNewReport), MatrixManager.MainStationMatrix);
 
-			AudioSourceParameters audioSourceParameters = new AudioSourceParameters(pitch: 1f);
-			_ = SoundManager.PlayNetworked(updateTypes[type], audioSourceParameters);
-			_ = SoundManager.PlayNetworked(SingletonSOSounds.Instance.AnnouncementCommandReport);
+				AudioSourceParameters audioSourceParameters = new AudioSourceParameters(pitch: 1f);
+				_ = SoundManager.PlayNetworked(updateTypes[UpdateSound.Notice], audioSourceParameters);
+				_ = SoundManager.PlayNetworked(CommonSounds.Instance.AnnouncementCommandReport);
+			}
 		}
 
 		/// <summary>
@@ -263,7 +263,7 @@ namespace Managers
 				string.Format(ChatTemplates.PriorityAnnouncement, string.Format(ChatTemplates.ShuttleCallSub,minutes,text) ),
 				MatrixManager.MainStationMatrix);
 
-			_ = SoundManager.PlayNetworked(SingletonSOSounds.Instance.ShuttleCalled);
+			_ = SoundManager.PlayNetworked(CommonSounds.Instance.ShuttleCalled);
 		}
 
 		/// <summary>
@@ -275,26 +275,14 @@ namespace Managers
 				string.Format(ChatTemplates.PriorityAnnouncement, string.Format(ChatTemplates.ShuttleRecallSub,text)),
 				MatrixManager.MainStationMatrix);
 
-			_ = SoundManager.PlayNetworked(SingletonSOSounds.Instance.ShuttleRecalled);
-		}
-
-		private string StationObjectiveReport()
-		{
-			var report = new StringBuilder();
-			report.AppendFormat(ReportTemplates.StationObjective, plasmaOrderRequestAmt);
-
-			foreach (var location in asteroidLocations)
-			{
-				report.AppendFormat(" <size=24>{0}</size> ", Vector2Int.RoundToInt(location));
-			}
-
-			return report.ToString();
+			_ = SoundManager.PlayNetworked(CommonSounds.Instance.ShuttleRecalled);
 		}
 
 		public enum UpdateSound {
 			Notice,
 			Alert,
 			Announce,
+			CentComAnnounce,
 			NoSound
 		}
 

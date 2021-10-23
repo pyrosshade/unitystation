@@ -56,9 +56,13 @@ MonoBehaviour:
   syncInterval: 0.1
   matrixDebugLogging: 0
   objectType: 1
+  customNetTransform: {fileID: 0}
+  prefabTracker: {fileID: 0}
+  CurrentsortingGroup: {fileID: 4650834945695449492}
   AtmosPassable: 1
-  Passable: 0
   ReachableThrough: 1
+  initialPassable: 0
+  initialCrawlPassable: 0
   passableExclusionsToThis: []
 --- !u!1001 &3475978088997710883
 PrefabInstance:
@@ -96,7 +100,7 @@ PrefabInstance:
     - target: {fileID: 3145725722567961701, guid: c80393b4412660b41937e05425ceb921,
         type: 3}
       propertyPath: m_AssetId
-      value: 
+      value: 0431bbed1f9bcd14da4c66e63c6e3165
       objectReference: {fileID: 0}
     - target: {fileID: 6708729305040715024, guid: c80393b4412660b41937e05425ceb921,
         type: 3}
@@ -107,17 +111,7 @@ PrefabInstance:
     - target: {fileID: 6708729305040715024, guid: c80393b4412660b41937e05425ceb921,
         type: 3}
       propertyPath: m_SortingLayer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: 6708729305040715024, guid: c80393b4412660b41937e05425ceb921,
-        type: 3}
-      propertyPath: m_SortingOrder
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6708729305040715024, guid: c80393b4412660b41937e05425ceb921,
-        type: 3}
-      propertyPath: m_SortingLayerID
-      value: 142874271
+      value: 14
       objectReference: {fileID: 0}
     - target: {fileID: 6804860837380333533, guid: c80393b4412660b41937e05425ceb921,
         type: 3}
@@ -179,6 +173,11 @@ PrefabInstance:
       propertyPath: m_Name
       value: WindowReinforcedFullTile
       objectReference: {fileID: 0}
+    - target: {fileID: 7569395453688850254, guid: c80393b4412660b41937e05425ceb921,
+        type: 3}
+      propertyPath: foreverID
+      value: 0431bbed1f9bcd14da4c66e63c6e3165
+      objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 6315650382505132097, guid: c80393b4412660b41937e05425ceb921, type: 3}
     - {fileID: 6351946412456901461, guid: c80393b4412660b41937e05425ceb921, type: 3}
@@ -191,6 +190,12 @@ PrefabInstance:
 --- !u!1 &7946366853500351780 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 6807768264998672647, guid: c80393b4412660b41937e05425ceb921,
+    type: 3}
+  m_PrefabInstance: {fileID: 3475978088997710883}
+  m_PrefabAsset: {fileID: 0}
+--- !u!210 &4650834945695449492 stripped
+SortingGroup:
+  m_CorrespondingSourceObject: {fileID: 8121734065907396023, guid: c80393b4412660b41937e05425ceb921,
     type: 3}
   m_PrefabInstance: {fileID: 3475978088997710883}
   m_PrefabAsset: {fileID: 0}

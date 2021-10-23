@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace HealthV2
 {
-	public class Bones : BodyPartModification
+	public class Bones : Organ
 	{
 		[SerializeField] private float BloodGeneratedByOneNutriment = 1;
 		[SerializeField] private BloodType GeneratesThis;
@@ -19,10 +19,10 @@ namespace HealthV2
 		public override void ImplantPeriodicUpdate()
 		{
 			if (RelatedPart.BloodStoredMax > RelatedPart.BloodContainer.ReagentMixTotal && RelatedPart.BloodContainer[RelatedPart.Nutriment] > 0 &&
-			    RelatedPart.HealthMaster.GetTotalBlood() < RelatedPart.HealthMaster.CirculatorySystem.BloodInfo.BLOOD_NORMAL / 1000)
+			    RelatedPart.HealthMaster.GetTotalBlood() < RelatedPart.HealthMaster.CirculatorySystem.BloodInfo.BLOOD_NORMAL)
 			{
-				float toConsume = RelatedPart.ConsumptionNutriment;
-				if (RelatedPart.ConsumptionNutriment > RelatedPart.BloodContainer[RelatedPart.Nutriment])
+				float toConsume = RelatedPart.ConsumptionNutriment * RelatedPart.BloodThroughput;
+				if (toConsume > RelatedPart.BloodContainer[RelatedPart.Nutriment])
 				{
 					toConsume = RelatedPart.BloodContainer[RelatedPart.Nutriment];
 				}

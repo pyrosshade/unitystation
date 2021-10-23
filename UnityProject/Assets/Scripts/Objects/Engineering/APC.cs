@@ -1,20 +1,25 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using AddressableReferences;
-using Electricity.Inheritance;
-using Systems.Electricity;
-using Mirror;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.Serialization;
+using Mirror;
+using AddressableReferences;
+using Systems.Electricity;
 using Systems.Electricity.NodeModules;
+using Systems.ObjectConnection;
 using Objects.Lighting;
+using Objects.Construction;
+using Core.Editor.Attributes;
+using ScriptableObjects;
+using HealthV2;
 
 namespace Objects.Engineering
 {
 	[RequireComponent(typeof(ElectricalNodeControl))]
 	[RequireComponent(typeof(ResistanceSourceModule))]
-	public class APC : SubscriptionController, INodeControl, IServerDespawn, ISetMultitoolMaster
+	public class APC : SubscriptionController, INodeControl, ICheckedInteractable<HandApply>, IServerDespawn, IMultitoolMasterable
 	{
 		// -----------------------------------------------------
 		//					ELECTRICAL THINGS
@@ -47,11 +52,23 @@ namespace Objects.Engineering
 		private ResistanceSourceModule resistanceSourceModule;
 
 
-		[SerializeField, FormerlySerializedAs("NetTabType")]
+		[SerializeField, PrefabModeOnly, FormerlySerializedAs("NetTabType")]
 		private NetTabType netTabType = NetTabType.APC;
 
 		[Tooltip("Sound used when the APC loses all power.")]
-		[SerializeField] private AddressableAudioSource NoPowerSound = null;
+		[SerializeField, PrefabModeOnly]
+		private AddressableAudioSource NoPowerSound = null;
+
+		[NonSerialized]
+		//Called every power network update
+		public UnityEvent<APC> OnPowerNetworkUpdate = new UnityEvent<APC>();
+
+		/// <summary>
+		///Used to store all the departmentBatteries that have ever connected to this APC, there might be null values
+		///Dont use this to access currently connected batteries.
+		/// </summary>
+		public List<DepartmentBattery> DepartmentBatteries => departmentBatteries;
+		private List<DepartmentBattery> departmentBatteries = new List<DepartmentBattery>();
 
 		/// <summary>
 		/// Function for setting the voltage via the property. Used for the voltage SyncVar hook.
@@ -66,8 +83,16 @@ namespace Objects.Engineering
 
 		private void Awake()
 		{
+			powerControlSlot = GetComponent<ItemStorage>().GetIndexedItemSlot(0);
+			powerCellSlot = GetComponent<ItemStorage>().GetIndexedItemSlot(1);
+
 			electricalNodeControl = GetComponent<ElectricalNodeControl>();
 			resistanceSourceModule = GetComponent<ResistanceSourceModule>();
+			integrity = GetComponent<Integrity>();
+		}
+		private void OnEnable()
+		{
+			integrity.OnWillDestroyServer.AddListener(WhenDestroyed);
 		}
 
 		private void Start()
@@ -92,6 +117,7 @@ namespace Objects.Engineering
 
 		private void OnDisable()
 		{
+			integrity.OnWillDestroyServer.RemoveListener(WhenDestroyed);
 			if (electricalNodeControl == null) return;
 			if(ElectricalManager.Instance == null)return;
 			if(ElectricalManager.Instance.electricalSync == null)return;
@@ -108,12 +134,16 @@ namespace Objects.Engineering
 				connectedDepartmentBatteries.Clear();
 				foreach (var device in electricalNodeControl.Node.InData.Data.ResistanceToConnectedDevices)
 				{
-
 					if (device.Key.Data.InData.Categorytype != PowerTypeCategory.DepartmentBattery) continue;
 
-					if (!connectedDepartmentBatteries.Contains(device.Key.Data.GetComponent<DepartmentBattery>()))
+					if (connectedDepartmentBatteries.Contains(device.Key.Data.GetComponent<DepartmentBattery>()) == false)
 					{
 						connectedDepartmentBatteries.Add(device.Key.Data.GetComponent<DepartmentBattery>());
+
+						if (departmentBatteries.Contains(device.Key.Data.GetComponent<DepartmentBattery>()) == false)
+						{
+							departmentBatteries.Add(device.Key.Data.GetComponent<DepartmentBattery>());
+						}
 					}
 				}
 			}
@@ -129,6 +159,8 @@ namespace Objects.Engineering
 			SyncVoltage(voltageSync, electricalNodeControl.Node.InData.Data.ActualVoltage);
 			Current = electricalNodeControl.Node.InData.Data.CurrentInWire;
 			HandleDevices();
+
+			OnPowerNetworkUpdate.Invoke(this);
 		}
 
 		private void UpdateDisplay()
@@ -154,6 +186,42 @@ namespace Objects.Engineering
 				State = APCState.Dead;
 			}
 
+		}
+
+		private float CalculateMaxCapacity()
+		{
+			float newCapacity = 0;
+			foreach (DepartmentBattery battery in ConnectedDepartmentBatteries)
+			{
+				newCapacity += battery.BatterySupplyingModule.CapacityMax;
+			}
+
+			return newCapacity;
+		}
+
+		//Percentage in decimal, 0-1
+		public float CalculateChargePercentage()
+		{
+			var maxCapacity = CalculateMaxCapacity();
+
+			if (maxCapacity.Approx(0))
+			{
+				return 0;
+			}
+
+			float newCapacity = 0;
+			foreach (DepartmentBattery battery in ConnectedDepartmentBatteries)
+			{
+				newCapacity += battery.BatterySupplyingModule.CurrentCapacity;
+			}
+
+			return (newCapacity / maxCapacity);
+		}
+
+		// Percentage as string, 0% to 100%
+		public string CalculateChargePercentageString()
+		{
+			return CalculateChargePercentage().ToString("P0");
 		}
 
 		/// <summary>
@@ -245,22 +313,27 @@ namespace Objects.Engineering
 		/// <summary>
 		/// The screen sprites which are currently being displayed
 		/// </summary>
+		[PrefabModeOnly]
 		Sprite[] loadedScreenSprites;
 		/// <summary>
 		/// The animation sprites for when the APC is in a critical state
 		/// </summary>
+		[PrefabModeOnly]
 		public Sprite[] criticalSprites;
 		/// <summary>
 		/// The animation sprites for when the APC is charging
 		/// </summary>
+		[PrefabModeOnly]
 		public Sprite[] chargingSprites;
 		/// <summary>
 		/// The animation sprites for when the APC is fully charged
 		/// </summary>
+		[PrefabModeOnly]
 		public Sprite[] fullSprites;
 		/// <summary>
 		/// The sprite renderer for the APC display
 		/// </summary>
+		[PrefabModeOnly]
 		public SpriteRenderer screenDisplay;
 		/// <summary>
 		/// The sprite index for the display animation
@@ -359,41 +432,43 @@ namespace Objects.Engineering
 				}
 			}
 		}
+		//	// -----------------------------------------------------
+		//	//					INTERACTION THINGS
+		//	// -----------------------------------------------------
+		/// <summary>
+		/// Can this APC not be deconstructed?
+		/// </summary>
+		public bool canNotBeDeconstructed;
 
-		#region Editor
+		[Tooltip("Time taken to screwdrive to deconstruct this.")]
+		[SerializeField]
+		private float secondsToScrewdrive = 2f;
 
-		void OnDrawGizmosSelected()
-		{
-			var sprite = GetComponentInChildren<SpriteRenderer>();
-			if (sprite == null)
-				return;
+		private ItemSlot powerControlSlot;
+		private ItemSlot powerCellSlot;
 
-			//Highlighting all controlled lightSources
-			Gizmos.color = new Color(0.5f, 0.5f, 1, 1);
-			for (int i = 0; i < connectedDevices.Count; i++)
-			{
-				var lightSource = connectedDevices[i];
-				if(lightSource == null) continue;
-				Gizmos.DrawLine(sprite.transform.position, lightSource.transform.position);
-				Gizmos.DrawSphere(lightSource.transform.position, 0.25f);
-			}
-		}
+		[Tooltip("The board that this APC should contain")]
+		[SerializeField]
+		private GameObject powerControlModule = null;
 
-		#endregion
+		[Tooltip("The power cell that this APC uses")]
+		[SerializeField]
+		private GameObject powerCell = null;
+
+		private Integrity integrity;
+
+		[SerializeField]
+		private GameObject APCFrameObj = null;
 
 		#region Multitool Interaction
 
-		[SerializeField]
-		private MultitoolConnectionType conType = MultitoolConnectionType.APC;
-		public MultitoolConnectionType ConType  => conType;
+		public MultitoolConnectionType ConType => MultitoolConnectionType.APC;
 
 		[SerializeField]
 		private bool multiMaster = true;
-		public bool MultiMaster  => multiMaster;
+		public bool MultiMaster => multiMaster;
 
-		public void AddSlave(object slaveObject)
-		{
-		}
+		int IMultitoolMasterable.MaxDistance => 30;
 
 		public void RemoveDevice(APCPoweredDevice apcPoweredDevice)
 		{
@@ -439,10 +514,76 @@ namespace Objects.Engineering
 			else
 			{
 				connectedDevices.Add(poweredDevice);
+
+				if (poweredDevice.RelatedAPC != null)
+				{
+					//Already connected to something so remove it
+					poweredDevice.RelatedAPC.RemoveDevice(poweredDevice);
+				}
+
 				poweredDevice.RelatedAPC = this;
 			}
 		}
 
 		#endregion
+
+		public bool WillInteract(HandApply interaction, NetworkSide side)
+		{
+			if (DefaultWillInteract.Default(interaction, side) == false) return false;
+			
+			return Validations.HasUsedItemTrait(interaction, CommonTraits.Instance.Screwdriver);
+		}
+
+		public void ServerPerformInteraction(HandApply interaction)
+		{
+			if (canNotBeDeconstructed)
+			{
+				Chat.AddExamineMsgFromServer(interaction.Performer, "This APC is too well built to be deconstructed.");
+				return;
+			}
+
+			float voltage = Voltage*10;
+			Vector3 shockpos = gameObject.WorldPosServer();
+			Electrocution electrocution = new Electrocution(voltage, shockpos, "APC");
+			
+			interaction.Performer.GetComponent<PlayerHealthV2>().Electrocute(electrocution);
+
+			ToolUtils.ServerUseToolWithActionMessages(interaction, secondsToScrewdrive,
+					$"You start to disconnect the {gameObject.ExpensiveName()}'s electronics...",
+					$"{interaction.Performer.ExpensiveName()} starts to disconnect the {gameObject.ExpensiveName()}'s electronics...",
+					$"You disconnect the {gameObject.ExpensiveName()}'s electronics.",
+					$"{interaction.Performer.ExpensiveName()} disconnects the {gameObject.ExpensiveName()}'s electronics.",
+					() =>
+					{
+						WhenDestroyed(null);
+					});
+		}
+		public void WhenDestroyed(DestructionInfo info)
+		{
+			// rare cases were gameObject is destroyed for some reason and then the method is called
+			if (gameObject == null) return;
+
+			Inventory.ServerSpawnPrefab(powerControlModule, powerControlSlot, ReplacementStrategy.Cancel);
+			Inventory.ServerSpawnPrefab(powerCell, powerCellSlot, ReplacementStrategy.Cancel);
+
+			SpawnResult frameSpawn = Spawn.ServerPrefab(APCFrameObj, SpawnDestination.At(gameObject));
+			if (frameSpawn.Successful == false)
+			{
+				Logger.LogError($"Failed to spawn frame! Is {this} missing references in the inspector?", Category.Construction);
+				return;
+			}
+
+			GameObject frame = frameSpawn.GameObject;
+			frame.GetComponent<APCFrame>().ServerInitFromComputer(this);
+
+			var Directional = frame.GetComponent<Directional>();
+			if (Directional != null) Directional.FaceDirection(gameObject.GetComponent<Directional>().CurrentDirection);
+
+			_ = Despawn.ServerSingle(gameObject);
+
+			integrity.OnWillDestroyServer.RemoveListener(WhenDestroyed);
+		}
 	}
+
 }
+

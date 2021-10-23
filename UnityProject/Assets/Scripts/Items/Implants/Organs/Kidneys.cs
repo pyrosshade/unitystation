@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace HealthV2
 {
-	public class Kidneys : BodyPartModification
+	public class Kidneys : Organ
 	{
 		public List<Reagent> WhiteListReagents = new List<Reagent>();
 
@@ -25,6 +25,7 @@ namespace HealthV2
 
 		public override void ImplantPeriodicUpdate()
 		{
+			base.ImplantPeriodicUpdate();
 			ContainedGoodReagents.Clear();
 			foreach (var Reagent in WhiteListReagents)
 			{

@@ -13,6 +13,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   petrifyTime: 60
+  punishSfx:
+    SetLoadSetting: 0
+    AssetAddress: Assets/Prefabs/Magic/FleshToStone.prefab
+    AssetReference:
+      m_AssetGUID: 
+      m_SubObjectName: 
+      m_SubObjectType: 
 --- !u!1001 &7192707330433209878
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -20,10 +27,10 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: 4067572995854857205, guid: f9b48c194efec7840b9dea9662005173,
+    - target: {fileID: 3579279403042536298, guid: f9b48c194efec7840b9dea9662005173,
         type: 3}
-      propertyPath: remarks.Array.size
-      value: 7
+      propertyPath: foreverID
+      value: 651304d8cd4458e4097191da621c0f30
       objectReference: {fileID: 0}
     - target: {fileID: 4067572995854857205, guid: f9b48c194efec7840b9dea9662005173,
         type: 3}
@@ -31,6 +38,11 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 11400000, guid: 5f4b8b36713a15b4384a86bc4a7f63e2,
         type: 2}
+    - target: {fileID: 4067572995854857205, guid: f9b48c194efec7840b9dea9662005173,
+        type: 3}
+      propertyPath: remarks.Array.size
+      value: 7
+      objectReference: {fileID: 0}
     - target: {fileID: 4067572995854857205, guid: f9b48c194efec7840b9dea9662005173,
         type: 3}
       propertyPath: remarks.Array.data[0]
@@ -76,7 +88,7 @@ PrefabInstance:
     - target: {fileID: 7530770484140264115, guid: f9b48c194efec7840b9dea9662005173,
         type: 3}
       propertyPath: m_AssetId
-      value: 
+      value: 651304d8cd4458e4097191da621c0f30
       objectReference: {fileID: 0}
     - target: {fileID: 7567485960501791347, guid: f9b48c194efec7840b9dea9662005173,
         type: 3}

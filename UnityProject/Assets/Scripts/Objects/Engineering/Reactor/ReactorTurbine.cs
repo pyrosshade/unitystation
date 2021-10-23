@@ -1,16 +1,18 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Systems.Electricity.NodeModules;
+using Systems.ObjectConnection;
+
 
 namespace Objects.Engineering
 {
-	public class ReactorTurbine : MonoBehaviour, INodeControl, ISetMultitoolSlave, ISetMultitoolMaster, ICheckedInteractable<HandApply>
+	public class ReactorTurbine : MonoBehaviour, INodeControl, IMultitoolSlaveable, IMultitoolMasterable, ICheckedInteractable<HandApply>
 	{
 		public ModuleSupplyingDevice moduleSupplyingDevice;
 		public GameObject ConstructMaterial;
-		[SerializeField] private int droppedMaterialAmount = 25;
+		[SerializeField]
+		private int droppedMaterialAmount = 25;
 		public ReactorBoiler Boiler;
 
 		#region Lifecycle
@@ -98,23 +100,30 @@ namespace Objects.Engineering
 		 */
 
 		#region Multitool Interaction
-		[SerializeField]
-		private MultitoolConnectionType conType = MultitoolConnectionType.BoilerTurbine;
-		public MultitoolConnectionType ConType => conType;
 
-		private bool multiMaster = false;
-		public bool MultiMaster => multiMaster;
+		MultitoolConnectionType IMultitoolLinkable.ConType => MultitoolConnectionType.BoilerTurbine;
 
-		public void SetMaster(ISetMultitoolMaster Imaster)
+		// Master connection
+		bool IMultitoolMasterable.MultiMaster => false;
+		int IMultitoolMasterable.MaxDistance => int.MaxValue;
+
+		// Slave connection
+		IMultitoolMasterable IMultitoolSlaveable.Master => Boiler;
+		bool IMultitoolSlaveable.RequireLink => true;
+		bool IMultitoolSlaveable.TrySetMaster(PositionalHandApply interaction, IMultitoolMasterable master)
 		{
-			var boiler = (Imaster as Component)?.gameObject.GetComponent<ReactorBoiler>();
-			if (boiler != null)
-			{
-				Boiler = boiler;
-			}
+			SetMaster(master);
+			return true;
+		}
+		void IMultitoolSlaveable.SetMasterEditor(IMultitoolMasterable master)
+		{
+			SetMaster(master);
 		}
 
-		public void AddSlave(object SlaveObjectThis) { }
+		private void SetMaster(IMultitoolMasterable master)
+		{
+			Boiler = master is ReactorBoiler boiler ? boiler : null;
+		}
 
 		#endregion
 	}

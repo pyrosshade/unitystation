@@ -71,7 +71,7 @@ namespace Systems.MobAIs
 		public override void OnSpawnServer(SpawnInfo info)
 		{
 			base.OnSpawnServer(info);
-			eatFoodSound = SingletonSOSounds.Instance.EatFood;
+			eatFoodSound = CommonSounds.Instance.EatFood;
 		}
 
 		/// <summary>
@@ -232,7 +232,7 @@ namespace Systems.MobAIs
 					break;
 				case Target.missingFloor:
 					if (IsEmagged == false) interactableTiles.TileChangeManager.UpdateTile(checkPos, TileType.Floor, "Floor");
-					else interactableTiles.TileChangeManager.RemoveTile(checkPos, LayerType.Floors, true);
+					else interactableTiles.TileChangeManager.RemoveTile(checkPos, LayerType.Floors);
 
 					break;
 				case Target.injuredPeople:

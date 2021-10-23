@@ -51,7 +51,7 @@ namespace Items
 			//If in an itemslot try to get that root position
 			if (pickupable.ItemSlot != null)
 			{
-				pos = pickupable.ItemSlot.GetRootStorage().gameObject.WorldPosServer().RoundToInt();
+				pos = pickupable.ItemSlot.GetRootStorageOrPlayer().gameObject.WorldPosServer().RoundToInt();
 			}
 
 			//If the position is still hidden then the shard or the top pickupable is also hidden
@@ -102,7 +102,7 @@ namespace Items
 		//Used on shard on tile
 		public bool WillInteract(HandApply interaction, NetworkSide side)
 		{
-			if (DefaultWillInteract.HandApply(interaction, side) == false) return false;
+			if (DefaultWillInteract.Default(interaction, side) == false) return false;
 
 			if (Validations.HasItemTrait(interaction.UsedObject, CommonTraits.Instance.Welder)) return true;
 
@@ -117,7 +117,7 @@ namespace Items
 		//Used on shard in inventory
 		public bool WillInteract(InventoryApply interaction, NetworkSide side)
 		{
-			if (DefaultWillInteract.InventoryApply(interaction, side) == false) return false;
+			if (Validations.CanInteract(interaction.PerformerPlayerScript, side) == false) return false;
 
 			if (Validations.HasItemTrait(interaction.UsedObject, CommonTraits.Instance.Welder)) return true;
 
@@ -138,7 +138,7 @@ namespace Items
 			//If in inventory use player pos instead, check root in case player is in something
 			if (pickupable.ItemSlot != null)
 			{
-				pos = pickupable.ItemSlot.GetRootStorage().gameObject.WorldPosServer().RoundToInt();
+				pos = pickupable.ItemSlot.GetRootStorageOrPlayer().gameObject.WorldPosServer().RoundToInt();
 			}
 
 			//If hidden then stop

@@ -309,6 +309,8 @@ namespace Objects.Construction
 					allowedTraits.Add(new AllowedTraitList(list.itemTrait));
 				}
 
+				netIdentity.isDirty = true;
+
 				Inventory.ServerTransfer(interaction.HandSlot, circuitBoardSlot);
 				stateful.ServerChangeState(circuitAddedState);
 				putBoardInManually = true;
@@ -386,8 +388,8 @@ namespace Objects.Construction
 				}
 
 				//Send circuit board data to the new machine
-				spawnedObject.SetBasicPartsUsed(basicPartsUsed);
 				spawnedObject.SetPartsInFrame(partsInFrame);
+				spawnedObject.SetBasicPartsUsed(basicPartsUsed);
 				spawnedObject.SetMachineParts(machineParts);
 
 				//Restoring previous vendor content if possible
@@ -683,10 +685,20 @@ namespace Objects.Construction
 			TryTransferVendorContent();
 
 			allowedTraits.Clear();
-			foreach (var list in machineParts.machineParts)
+
+			if (machineParts == null || machineParts.machineParts == null)
 			{
-				allowedTraits.Add(new AllowedTraitList(list.itemTrait));
+				Logger.LogError($"Failed to find machine parts for {machineParts.OrNull()?.name ?? board.ExpensiveName()}");
 			}
+			else
+			{
+				foreach (var list in machineParts.machineParts)
+				{
+					allowedTraits.Add(new AllowedTraitList(list.itemTrait));
+				}
+			}
+
+			netIdentity.isDirty = true;
 
 			// Put it in
 			Inventory.ServerAdd(board, circuitBoardSlot);

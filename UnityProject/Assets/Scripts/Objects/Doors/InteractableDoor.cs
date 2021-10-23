@@ -111,6 +111,9 @@ namespace Doors
 				Controller.isEmagged = true;
 				emag.UseCharge(interaction);
 				TryOpen(interaction.Performer);
+				Chat.AddActionMsgToChat(interaction,
+					"The access panel errors. A slight amount of smoke pours from behind the panel...",
+							"You can smell caustic smoke from somewhere...");
 			}
 		}
 
@@ -118,7 +121,7 @@ namespace Doors
 		{
 			if (Controller == null) return;
 
-			if (Controller.IsClosed && Controller.IsHackable && Validations.HasItemTrait(interaction.HandObject, CommonTraits.Instance.CanPryDoor))
+			if (Controller.IsClosed && Validations.HasItemTrait(interaction.HandObject, CommonTraits.Instance.CanPryDoor))
 			{
 				//allows the jaws of life to pry open doors
 				ToolUtils.ServerUseToolWithActionMessages(interaction, 4.5f,

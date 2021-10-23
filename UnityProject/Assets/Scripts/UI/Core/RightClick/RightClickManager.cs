@@ -185,8 +185,7 @@ public class RightClickManager : MonoBehaviour
 			return null;
 		}
 
-		var position = Camera.main.ScreenToWorldPoint(mousePosition);
-		position.z = 0f;
+		var position = MouseUtils.MouseToWorldPos();
 		var objects = UITileList.GetItemsAtPosition(position);
 
 		//special case, remove wallmounts that are transparent
@@ -262,8 +261,10 @@ public class RightClickManager : MonoBehaviour
 
 				if (!string.IsNullOrEmpty(PlayerList.Instance.AdminToken))
 				{
-					Action VVAction = () => RequestBookshelfNetMessage.Send(curObject, ServerData.UserID, PlayerList.Instance.AdminToken);
-					subMenus.Add(VariableViewerOption.AsMenu(VVAction));
+					subMenus.Add(VariableViewerOption.AsMenu(() =>
+					{
+						RequestBookshelfNetMessage.Send(curObject);
+					}));
 				}
 			}
 

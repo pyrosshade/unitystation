@@ -1,18 +1,20 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using Electricity.Inheritance;
 using Mirror;
 using UnityEngine;
 using Systems.Electricity;
+using Systems.Interaction;
+using Systems.ObjectConnection;
+
 
 namespace Objects.Lighting
 {
-	public class LightSwitchV2 : SubscriptionController, ICheckedInteractable<HandApply>, IAPCPowerable, ISetMultitoolMaster
+	public class LightSwitchV2 : SubscriptionController, ICheckedInteractable<HandApply>, IAPCPowerable, IMultitoolMasterable, ICheckedInteractable<AiActivate>
 	{
 		public List<LightSource> listOfLights;
 
-		public Action<bool> SwitchTriggerEvent;
+		[NonSerialized] public Action<bool> SwitchTriggerEvent;
 
 		[SyncVar(hook = nameof(SyncState))]
 		public bool isOn = true;
@@ -71,14 +73,50 @@ namespace Objects.Lighting
 		{
 			if (!DefaultWillInteract.Default(interaction, side)) return false;
 			if (interaction.HandObject != null && interaction.Intent == Intent.Harm) return false;
-			return !isInCoolDown;
+
+			if (isInCoolDown) return false;
+			StartCoroutine(SwitchCoolDown());
+
+			return true;
 		}
 
 		public void ServerPerformInteraction(HandApply interaction)
 		{
-			StartCoroutine(SwitchCoolDown());
+			TryInteraction();
+		}
+
+		#endregion
+
+		private void TryInteraction()
+		{
 			if (powerState == PowerState.Off || powerState == PowerState.LowVoltage) return;
 			ServerChangeState(!isOn);
+		}
+
+		#region Ai Interaction
+
+		public bool WillInteract(AiActivate interaction, NetworkSide side)
+		{
+			if (interaction.ClickType != AiActivate.ClickTypes.NormalClick) return false;
+
+			if (DefaultWillInteract.AiActivate(interaction, side) == false) return false;
+
+			if (isInCoolDown) return false;
+
+			//Trigger client cooldown only, or else it will break for local host
+			if (CustomNetworkManager.IsServer == false)
+			{
+				StartCoroutine(SwitchCoolDown());
+			}
+
+			return true;
+		}
+
+		public void ServerPerformInteraction(AiActivate interaction)
+		{
+			//Start server cooldown
+			StartCoroutine(SwitchCoolDown());
+			TryInteraction();
 		}
 
 		#endregion
@@ -114,36 +152,18 @@ namespace Objects.Lighting
 			isInCoolDown = false;
 		}
 
-		#region ISetMultitoolMaster
+		#region Multitool Interaction
 
 		[SerializeField]
 		private MultitoolConnectionType conType = MultitoolConnectionType.LightSwitch;
 		public MultitoolConnectionType ConType => conType;
 
-		private bool multiMaster = true;
-		public bool MultiMaster => multiMaster;
-
-		public void AddSlave(object slaveObject) { }
+		public bool MultiMaster => true;
+		int IMultitoolMasterable.MaxDistance => int.MaxValue;
 
 		#endregion
 
 		#region Editor
-
-		private void OnDrawGizmosSelected()
-		{
-			var sprite = GetComponentInChildren<SpriteRenderer>();
-			if (sprite == null) return;
-
-			// Highlighting all controlled lightSources
-			Gizmos.color = new Color(1, 1, 0, 1);
-			for (int i = 0; i < listOfLights.Count; i++)
-			{
-				var lightSource = listOfLights[i];
-				if (lightSource == null) continue;
-				Gizmos.DrawLine(sprite.transform.position, lightSource.transform.position);
-				Gizmos.DrawSphere(lightSource.transform.position, 0.25f);
-			}
-		}
 
 		public override IEnumerable<GameObject> SubscribeToController(IEnumerable<GameObject> potentialObjects)
 		{

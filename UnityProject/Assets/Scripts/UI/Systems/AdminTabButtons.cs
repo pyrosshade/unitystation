@@ -1,5 +1,7 @@
 ﻿using UnityEngine;
 using AdminTools;
+using AdminTools.VariableViewer;
+
 
 namespace UI.AdminTools
 {
@@ -15,7 +17,7 @@ namespace UI.AdminTools
 		public GUI_DevSelectVVTile devSelectTile;
 		public GUI_VariableViewer vv;
 
-		void Awake()
+		private void Awake()
 		{
 			DisableAllGUI();
 		}
@@ -49,7 +51,7 @@ namespace UI.AdminTools
 		public void BtnOpenVV()
 		{
 			DisableAllGUI();
-			vv.Open();
+			UIManager.Instance.VariableViewer.Open();
 		}
 
 		public void BtnOpenTileVV()
@@ -59,7 +61,7 @@ namespace UI.AdminTools
 			devSelectTile.Open();
 		}
 
-		void DisableAllGUI()
+		private void DisableAllGUI()
 		{
 			adminTools.gameObject.SetActive(false);
 			devSpawner.gameObject.SetActive(false);

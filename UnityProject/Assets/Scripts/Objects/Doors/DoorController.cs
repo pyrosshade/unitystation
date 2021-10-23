@@ -1,18 +1,22 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using AddressableReferences;
-using HealthV2;
-using Messages.Client.NewPlayer;
-using Messages.Server;
 using UnityEngine;
 using Mirror;
+using Messages.Client.NewPlayer;
+using Messages.Server;
+using AddressableReferences;
 using ScriptableObjects;
+using Systems.Interaction;
+using Systems.ObjectConnection;
+using HealthV2;
 using Objects.Wallmounts;
+using UnityEngine.Events;
+
 
 namespace Doors
 {
-	public class DoorController : NetworkBehaviour, ISetMultitoolSlave
+	public class DoorController : NetworkBehaviour, IMultitoolSlaveable, ICheckedInteractable<AiActivate>
 	{
 		public enum OpeningDirection
 		{
@@ -70,6 +74,10 @@ namespace Doors
 		[Tooltip("Does this door open automatically when you walk into it?")]
 		public bool IsAutomatic = true;
 
+		[NonSerialized] public UnityEvent OnDoorClose = new UnityEvent();
+
+		[NonSerialized] public UnityEvent OnDoorOpen = new UnityEvent();
+
 		/// <summary>
 		/// Makes registerTile door closed state accessible
 		/// </summary>
@@ -94,11 +102,12 @@ namespace Doors
 		[Tooltip("First frame of the door pressure light animation")]
 		public int DoorPressureSpriteOffset = 25;
 		// After pressure alert issued, time until it will display the alert again instead of opening.
-		private int pressureWarningCooldown = 5;
-		private int pressureThresholdCaution = 30; // kPa, both thresholds arbitrarily chosen
-		private int pressureThresholdWarning = 120;
+		private readonly int pressureWarningCooldown = 5;
+		private readonly int pressureThresholdCaution = 30; // kPa, both thresholds arbitrarily chosen
+		private readonly int pressureThresholdWarning = 120;
 		private bool pressureWarnActive = false;
-		[HideInInspector] public PressureLevel pressureLevel = PressureLevel.Safe;
+
+		public PressureLevel CurrentPressureLevel { get; private set; } = PressureLevel.Safe;
 
 		public OpeningDirection openingDirection;
 		private RegisterDoor registerTile;
@@ -117,14 +126,7 @@ namespace Doors
 			}
 		}
 
-		[HideInInspector] public SpriteRenderer spriteRenderer;
-
-
-		private HackingProcessBase hackingProcess;
-		public HackingProcessBase HackingProcess => hackingProcess;
-
-		private bool isHackable;
-		public bool IsHackable => isHackable;
+		private SpriteRenderer spriteRenderer;
 
 		private float inputDelay = 0.5f;
 		private float delayStartTime = 0;
@@ -152,9 +154,6 @@ namespace Doors
 			openLayer = LayerMask.NameToLayer("Door Open");
 			registerTile = gameObject.GetComponent<RegisterDoor>();
 			tileChangeManager = GetComponentInParent<TileChangeManager>();
-
-			hackingProcess = GetComponent<HackingProcessBase>();
-			isHackable = hackingProcess != null;
 		}
 
 		public override void OnStartClient()
@@ -258,14 +257,7 @@ namespace Doors
 
 		public void CloseSignal()
 		{
-			if (isHackable)
-			{
-				hackingProcess.SendOutputToConnectedNodes(HackingIdentifier.OnShouldClose);
-			}
-			else
-			{
-				TryClose();
-			}
+			TryClose();
 		}
 
 		public void TryClose()
@@ -298,7 +290,7 @@ namespace Doors
 			delayStartTime = Time.time;
 
 			IsClosed = true;
-
+			OnDoorClose?.Invoke();
 			if (isPerformingAction == false)
 			{
 				DoorUpdateMessage.SendToAll(gameObject, DoorUpdateType.Close);
@@ -316,6 +308,7 @@ namespace Doors
 				DoorUpdateMessage.SendToAll(gameObject, DoorUpdateType.AccessDenied);
 			}
 		}
+
 		public void MobTryOpen(GameObject originator)
 		{
 			if (IsClosed == false || isPerformingAction) return;
@@ -328,30 +321,10 @@ namespace Doors
 
 			if (AccessRestrictions != null && AccessRestrictions.CheckAccess(originator) == false)
 			{
-				if (isHackable)
-				{
-					hackingProcess.SendOutputToConnectedNodes(HackingIdentifier.OnIdRejected, originator);
-				}
-				else
-				{
-					ServerAccessDenied();
-				}
-
+				ServerAccessDenied();
 				return;
 			}
 
-			if (isHackable)
-			{
-				hackingProcess.SendOutputToConnectedNodes(HackingIdentifier.OnShouldOpen, originator);
-			}
-			else
-			{
-				TryOpen(originator);
-			}
-		}
-
-		private void HackingTryOpen(GameObject originator = null)
-		{
 			TryOpen(originator);
 		}
 
@@ -371,14 +344,7 @@ namespace Doors
 			{
 				if (pressureWarnActive == false && DoorUnderPressure() && isEmagged == false)
 				{
-					if (isHackable)
-					{
-						hackingProcess.SendOutputToConnectedNodes(HackingIdentifier.ShouldDoPressureWarning);
-					}
-					else
-					{
-						ServerPressureWarn();
-					}
+					ServerPressureWarn();
 				}
 				else
 				{
@@ -398,7 +364,7 @@ namespace Doors
 				ResetWaiting();
 			}
 			IsClosed = false;
-
+			OnDoorOpen?.Invoke();
 			if (isPerformingAction == false)
 			{
 				DoorUpdateMessage.SendToAll(gameObject, DoorUpdateType.Open);
@@ -528,17 +494,17 @@ namespace Doors
 			// Set pressureLevel according to the pressure difference found.
 			if (vertPressureDiff >= pressureThresholdWarning || horzPressureDiff >= pressureThresholdWarning)
 			{
-				pressureLevel = PressureLevel.Warning;
+				CurrentPressureLevel = PressureLevel.Warning;
 				return true;
 			}
 
 			if (vertPressureDiff >= pressureThresholdCaution || horzPressureDiff >= pressureThresholdCaution)
 			{
-				pressureLevel = PressureLevel.Caution;
+				CurrentPressureLevel = PressureLevel.Caution;
 				return true;
 			}
 
-			pressureLevel = PressureLevel.Safe;
+			CurrentPressureLevel = PressureLevel.Safe;
 			return false;
 		}
 
@@ -572,92 +538,70 @@ namespace Doors
 			}
 		}
 
-		private void ServerElectrocute(GameObject obj)
-		{
-			float r = UnityEngine.Random.value;
-			if (r < 0.45) //TODO: Magic number, needs to be fixed.
-			{
-				PlayerScript ply = obj.GetComponent<PlayerScript>();
-				if (ply != null)
-				{
-					hackingProcess.HackingGUI.RemovePlayer(ply.gameObject);
-					TabUpdateMessage.Send(ply.gameObject, hackingProcess.HackingGUI.Provider, NetTabType.HackingPanel, TabAction.Close);
-					var playerLHB = obj.GetComponent<LivingHealthMasterBase>();
-					var electrocution = new Electrocution(9080, registerTile.WorldPositionServer, "wire"); //More magic numbers.
-					if (playerLHB != null) playerLHB.Electrocute(electrocution);
-				}
-			}
-
-		}
-
-		public void LinkHackNodes()
-		{
-			// door opening
-			HackingNode openDoor = hackingProcess.GetNodeWithInternalIdentifier(HackingIdentifier.OpenDoor);
-			openDoor.AddToInputMethods(HackingTryOpen);
-
-			HackingNode onShouldOpen = hackingProcess.GetNodeWithInternalIdentifier(HackingIdentifier.OnShouldOpen);
-			onShouldOpen.AddWireCutCallback(ServerElectrocute);
-			onShouldOpen.AddConnectedNode(openDoor);
-
-			// door closing
-			HackingNode closeDoor = hackingProcess.GetNodeWithInternalIdentifier(HackingIdentifier.CloseDoor);
-			closeDoor.AddToInputMethods(TryClose);
-
-			HackingNode onShouldClose = hackingProcess.GetNodeWithInternalIdentifier(HackingIdentifier.OnShouldClose);
-			onShouldClose.AddWireCutCallback(ServerElectrocute);
-			onShouldClose.AddConnectedNode(closeDoor);
-
-			// ID reject
-			HackingNode rejectID = hackingProcess.GetNodeWithInternalIdentifier(HackingIdentifier.RejectId);
-			rejectID.AddToInputMethods(ServerAccessDenied);
-
-			HackingNode onIDRejected = hackingProcess.GetNodeWithInternalIdentifier(HackingIdentifier.OnIdRejected);
-			onIDRejected.AddConnectedNode(rejectID);
-
-			// pressure warning
-			HackingNode doPressureWarning = hackingProcess.GetNodeWithInternalIdentifier(HackingIdentifier.DoPressureWarning);
-			doPressureWarning.AddToInputMethods(ServerPressureWarn);
-
-			HackingNode shouldDoPressureWarning = hackingProcess.GetNodeWithInternalIdentifier(HackingIdentifier.ShouldDoPressureWarning);
-			shouldDoPressureWarning.AddConnectedNode(doPressureWarning);
-
-			// power
-			HackingNode powerIn = hackingProcess.GetNodeWithInternalIdentifier(HackingIdentifier.PowerIn);
-
-			HackingNode powerOut = hackingProcess.GetNodeWithInternalIdentifier(HackingIdentifier.PowerOut);
-			powerOut.AddConnectedNode(powerIn);
-			powerOut.AddWireCutCallback(ServerElectrocute);
-
-			// dummy
-			HackingNode dummyIn = hackingProcess.GetNodeWithInternalIdentifier(HackingIdentifier.DummyIn);
-
-			HackingNode dummyOut = hackingProcess.GetNodeWithInternalIdentifier(HackingIdentifier.DummyOut);
-			dummyOut.AddConnectedNode(dummyIn);
-
-			// close timer
-			HackingNode cancelCloseTimer = hackingProcess.GetNodeWithInternalIdentifier(HackingIdentifier.CancelCloseTimer);
-			cancelCloseTimer.AddToInputMethods(CancelWaiting);
-		}
-
-		#region ISsetMultitoolSlave
+		#region Multitool Interaction
 
 		[SerializeField]
 		private MultitoolConnectionType conType = MultitoolConnectionType.DoorButton;
-		public MultitoolConnectionType ConType => conType;
 
-		public void SetMaster(ISetMultitoolMaster Imaster)
+		[SerializeField]
+		[Tooltip("Whether this door type requires a linked door button (e.g. shutters).")]
+		private bool requireLink = false;
+
+		MultitoolConnectionType IMultitoolLinkable.ConType => conType;
+		IMultitoolMasterable IMultitoolSlaveable.Master => doorMaster;
+		bool IMultitoolSlaveable.RequireLink => false;
+		// TODO: should be requireLink but hardcoded to false for now,
+		// doors don't know about links, only the switches
+		bool IMultitoolSlaveable.TrySetMaster(PositionalHandApply interaction, IMultitoolMasterable master)
 		{
-			var doorSwitch = (Imaster as DoorSwitch);
-			if (doorSwitch)
+			SetMaster(master);
+			return true;
+		}
+		void IMultitoolSlaveable.SetMasterEditor(IMultitoolMasterable master)
+		{
+			SetMaster(master);
+		}
+
+		private IMultitoolMasterable doorMaster;
+
+		private void SetMaster(IMultitoolMasterable master)
+		{
+			doorMaster = master;
+
+			if (master is DoorSwitch doorSwitch)
 			{
-				doorSwitch.DoorControllers.Add(this);
-				return;
+				doorSwitch.AddDoorControllerFromScene(this);
 			}
-			var statusDisplay = (Imaster as StatusDisplay);
-			if (statusDisplay)
+			else if (master is StatusDisplay statusDisplay)
 			{
 				statusDisplay.LinkDoor(this);
+			}
+		}
+
+		#endregion
+
+		#region Ai Interaction
+
+		public bool WillInteract(AiActivate interaction, NetworkSide side)
+		{
+			if (DefaultWillInteract.AiActivate(interaction, side) == false) return false;
+
+			return true;
+		}
+
+		public void ServerPerformInteraction(AiActivate interaction)
+		{
+			//Try open/close
+			if (interaction.ClickType == AiActivate.ClickTypes.ShiftClick)
+			{
+				if (IsClosed)
+				{
+					TryOpen();
+				}
+				else
+				{
+					TryClose();
+				}
 			}
 		}
 

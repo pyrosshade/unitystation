@@ -21,8 +21,17 @@ namespace HealthV2
 				PresentProcedure.ISon.SetBodyPartIsOpen(false,false) ;
 				PresentProcedure.ISon.currentlyOn = null;
 			}
-			OnBodyPart.RemoveFromBodyThis();
 
+			PresentProcedure.ISon.ThisPresentProcedure.PreviousBodyPart = null;
+			PresentProcedure.ISon.ThisPresentProcedure.RelatedBodyPart = null;
+			if (OnBodyPart.TryGetComponent<Organ>(out var organ))
+			{
+				organ.RelatedPart.OrganStorage.ServerTryRemove(organ.gameObject);
+			}
+			else
+			{
+				OnBodyPart.TryRemoveFromBody();
+			}
 		}
 	}
 }

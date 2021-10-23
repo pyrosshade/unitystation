@@ -88,9 +88,13 @@ namespace Objects.Disposals
 
 		private void TryWrench()
 		{
-			if (VerboseFloorExists() == false) return;
-			if (VerbosePlatingExposed() == false) return;
-			if (VerbosePipeExists()) return;
+			if (Anchored == false)
+			{
+				// Try anchor
+				if (VerboseFloorExists() == false) return;
+				if (VerbosePlatingExposed() == false) return;
+				if (VerbosePipeExists()) return;
+			}
 
 			Wrench();
 		}
@@ -123,8 +127,10 @@ namespace Objects.Disposals
 
 		private bool VerboseFloorExists()
 		{
-			if (MatrixManager.IsSpaceAt(registerTile.WorldPositionServer, true) == false) return true;
-
+			if (MatrixManager.IsConstructable(registerTile.WorldPositionServer))
+			{
+				return true;
+			}
 			Chat.AddExamineMsg(currentInteraction.Performer, $"A floor must be present to secure the {objectName}!");
 			return false;
 		}
@@ -210,8 +216,7 @@ namespace Objects.Disposals
 			{
 				var matrixTransform = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, Vector3.one);
 				Color pipeColor = GetComponentInChildren<SpriteRenderer>().color;
-				registerTile.Matrix.AddUnderFloorTile(registerTile.LocalPositionServer, pipeTileToSpawn, matrixTransform, pipeColor);
-				tileChangeManager.UpdateTile(registerTile.LocalPositionServer, pipeTileToSpawn);
+				registerTile.Matrix.TileChangeManager.UpdateTile(registerTile.LocalPositionServer, pipeTileToSpawn, matrixTransform, pipeColor);
 				_ = Despawn.ServerSingle(gameObject);
 			}
 			else

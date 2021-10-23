@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Messages.Client.NewPlayer;
 using Messages.Server;
+using Newtonsoft.Json;
 using UnityEngine;
 using UnityEngine.Events;
 using Objects;
@@ -43,36 +44,12 @@ public class TileChangeManager : MonoBehaviour
 		networkMatrix = GetComponent<NetworkedMatrix>();
 	}
 
-	public void InitServerSync(string data)
-	{
-		//server doesn't ever need to run this because this will replay its own changes
-		if (CustomNetworkManager.IsServer) return;
-
-		//Unpacking the data example (and then run action change)
-		var dataList = JsonUtility.FromJson<TileChangeList>(data);
-		foreach (TileChangeEntry entry in dataList.List)
-		{
-			Logger.LogTraceFormat("Received update for {0} layer {1} " + entry.TileName, Category.TileMaps,
-				entry.Position,
-				entry.LayerType);
-			// load tile & apply
-			if (entry.TileType.Equals(TileType.None))
-			{
-				InternalRemoveTile(entry.Position, entry.LayerType, entry.RemoveAll);
-			}
-			else
-			{
-				InternalUpdateTile(entry.Position, entry.TileType, entry.TileName,entry.transformMatrix, entry.color );
-			}
-		}
-	}
-
 	[Server]
 	public void UpdateNewPlayer(NetworkConnection requestedBy)
 	{
 		if (changeList.List.Count > 0)
 		{
-			TileChangesNewClientSync.Send(gameObject, requestedBy, changeList);
+			UpdateTileMessage.SendTo(gameObject, requestedBy, changeList);
 		}
 	}
 
@@ -92,17 +69,20 @@ public class TileChangeManager : MonoBehaviour
 
 
 	[Server]
-	public void UpdateTile(Vector3Int cellPosition, LayerTile layerTile, Matrix4x4? transformMatrix = null,
+	public Vector3Int UpdateTile(Vector3Int cellPosition, LayerTile layerTile, Matrix4x4? transformMatrix = null,
 		Color? color = null)
 	{
+		Vector3Int Vector3Int = Vector3Int.zero;
 		if (IsDifferent(cellPosition, layerTile, transformMatrix, color))
 		{
-			InternalUpdateTile(cellPosition, layerTile,transformMatrix, color);
+			Vector3Int = InternalUpdateTile(cellPosition, layerTile,transformMatrix, color);
 
 			AlertClients(cellPosition, layerTile.TileType, layerTile.name, transformMatrix, color);
 
 			AddToChangeList(cellPosition, layerTile, transformMatrix : transformMatrix , color: color);
 		}
+
+		return Vector3Int;
 	}
 
 	/// <summary>
@@ -134,17 +114,16 @@ public class TileChangeManager : MonoBehaviour
 	/// </summary>
 	/// <param name="cellPosition"></param>
 	/// <param name="layerType"></param>
-	/// <param name="removeAll"></param>
 	/// <returns></returns>
 	[Server]
-	public LayerTile RemoveTile(Vector3Int cellPosition, LayerType layerType, bool removeAll = true)
+	public LayerTile RemoveTile(Vector3Int cellPosition, LayerType layerType)
 	{
 		var layerTile = metaTileMap.GetTile(cellPosition, layerType);
 		if (metaTileMap.HasTile(cellPosition, layerType))
 		{
-			InternalRemoveTile(cellPosition, layerType, removeAll);
+			InternalRemoveTile(cellPosition, layerType);
 
-			RemoveTileMessage.Send(networkMatrix.MatrixSync.netId, cellPosition, layerType, false);
+			SpawnSafeThread.RemoveTileMessageSend(networkMatrix.MatrixSync.netId, cellPosition, layerType);
 
 			AddToChangeList(cellPosition, layerType);
 
@@ -202,34 +181,7 @@ public class TileChangeManager : MonoBehaviour
 	}
 
 	[Server]
-	public void RemoveOverlaysOfName(Vector3Int cellPosition, LayerType layerType,
-		string overlayName, bool onlyIfCleanable = false, TileType tileType = TileType.Effects)
-	{
-		cellPosition.z = 0;
-
-		var overlayPos = metaTileMap.GetOverlayPos(cellPosition, layerType, overlayName);
-		if(overlayPos == null) return;
-
-		cellPosition = overlayPos.Value;
-
-		if (onlyIfCleanable)
-		{
-			//only remove it if it's a cleanable tile
-			var tile = metaTileMap.GetTile(cellPosition, layerType) as OverlayTile;
-			//it's not an overlay tile or it's not cleanable so don't remove it
-			if (tile == null || !tile.IsCleanable) return;
-		}
-
-		InternalRemoveTile(cellPosition, layerType, false);
-
-		SpawnSafeThread.RemoveTileMessageSend(networkMatrix.MatrixSync.netId, cellPosition, layerType , tileType);
-
-		AddToChangeList(cellPosition, layerType);
-	}
-
-	[Server]
-	public void RemoveOverlaysOfType(Vector3Int cellPosition, LayerType layerType,
-		OverlayType overlayType, bool onlyIfCleanable = false)
+	public void RemoveOverlaysOfType(Vector3Int cellPosition, LayerType layerType, OverlayType overlayType, bool onlyIfCleanable = false)
 	{
 		cellPosition.z = 0;
 
@@ -248,9 +200,9 @@ public class TileChangeManager : MonoBehaviour
 				if (tile == null || !tile.IsCleanable) continue;
 			}
 
-			InternalRemoveTile(cellPosition, layerType, false);
+			InternalRemoveTile(cellPosition, layerType);
 
-			RemoveTileMessage.Send(networkMatrix.MatrixSync.netId, cellPosition, layerType, false);
+			SpawnSafeThread.RemoveTileMessageSend(networkMatrix.MatrixSync.netId, cellPosition, layerType);
 
 			AddToChangeList(cellPosition, layerType);
 		}
@@ -276,9 +228,9 @@ public class TileChangeManager : MonoBehaviour
 				if (tile == null || !tile.IsCleanable) continue;
 			}
 
-			InternalRemoveTile(cellPosition, layerType, false);
+			InternalRemoveTile(cellPosition, layerType);
 
-			RemoveTileMessage.Send(networkMatrix.MatrixSync.netId, cellPosition, layerType, false);
+			SpawnSafeThread.RemoveTileMessageSend(networkMatrix.MatrixSync.netId, cellPosition, layerType);
 
 			AddToChangeList(cellPosition, layerType);
 		}
@@ -312,6 +264,24 @@ public class TileChangeManager : MonoBehaviour
 		return metaTileMap.HasOverlay(cellPosition, overlayTile.LayerType, overlayTile);
 	}
 
+	[Server]
+	public bool HasOverlayOfType(Vector3Int cellPosition, LayerType layerType, OverlayType overlayType)
+	{
+		return metaTileMap.HasOverlayOfType(cellPosition, layerType, overlayType);
+	}
+
+	/// <summary>
+	/// Gets the colour of the first tile of this type
+	/// </summary>
+	[Server]
+	public Color? GetColourOfFirstTile(Vector3Int cellPosition, OverlayType overlayType, LayerType layerType)
+	{
+		var overlays = metaTileMap.GetOverlayPosByType(cellPosition, layerType, overlayType);
+		if (overlays.Count == 0) return null;
+
+		return metaTileMap.GetColour(overlays.First(), layerType);
+	}
+
 	#endregion
 
 
@@ -321,7 +291,7 @@ public class TileChangeManager : MonoBehaviour
 		return metaTileMap.GetTile(cellPosition, layerType);
 	}
 
-	public void InternalRemoveTile(Vector3 position, LayerType layerType, bool removeAll)
+	public void InternalRemoveTile(Vector3 position, LayerType layerType)
 	{
 		Vector3Int p = position.RoundToInt();
 
@@ -351,16 +321,16 @@ public class TileChangeManager : MonoBehaviour
 		metaTileMap.SetTile(position, layerTile, transformMatrix, color);
 	}
 
-	public void InternalUpdateTile(Vector3 position, LayerTile layerTile, Matrix4x4? transformMatrix = null,
+	public Vector3Int InternalUpdateTile(Vector3 position, LayerTile layerTile, Matrix4x4? transformMatrix = null,
 		Color? color = null)
 	{
 		Vector3Int p = position.RoundToInt();
 
-		metaTileMap.SetTile(p, layerTile, transformMatrix, color);
+		return metaTileMap.SetTile(p, layerTile, transformMatrix, color);
 	}
 
 	private void AddToChangeList(Vector3Int position, LayerType layerType = LayerType.None,
-		TileType tileType = TileType.None, string tileName = null, bool removeAll = false, Matrix4x4? transformMatrix = null,
+		TileType tileType = TileType.None, string tileName = null, Matrix4x4? transformMatrix = null,
 		Color? color = null)
 	{
 		changeList.List.Add(new TileChangeEntry()
@@ -369,15 +339,13 @@ public class TileChangeManager : MonoBehaviour
 			LayerType = layerType,
 			TileType = tileType,
 			TileName = tileName,
-			RemoveAll = removeAll,
 			transformMatrix = transformMatrix,
 			color = color
 		});
 	}
 
 	private void AddToChangeList(Vector3Int position, LayerTile layerTile, LayerType layerType = LayerType.None,
-		bool removeAll = false, Matrix4x4? transformMatrix = null,
-		Color? color = null)
+		Matrix4x4? transformMatrix = null, Color? color = null)
 	{
 		changeList.List.Add(new TileChangeEntry()
 		{
@@ -385,7 +353,6 @@ public class TileChangeManager : MonoBehaviour
 			LayerType = layerType,
 			TileType = layerTile.TileType,
 			TileName = layerTile.name,
-			RemoveAll = removeAll,
 			transformMatrix = transformMatrix,
 			color = color
 		});
@@ -405,16 +372,6 @@ public class TileChangeManager : MonoBehaviour
 		return metaTileMap.IsDifferent(position, layerTile, layerTile.LayerType, transformMatrix, color);
 	}
 
-	public enum OverlayType
-	{
-		//none is used to say there is no overlay, add new category if you need a new type
-		None,
-		Gas,
-		Damage,
-		Cleanable,
-		Fire,
-		Mining
-	}
 }
 
 [System.Serializable]
@@ -442,13 +399,10 @@ public class TileChangeEntry
 
 	public string TileName;
 
-	public bool RemoveAll;
-
 	public Matrix4x4? transformMatrix;
 
-	public Color? color;
+	public Vector4? color;
 
-	public TileChangeManager.OverlayType overlayType;
 
 }
 

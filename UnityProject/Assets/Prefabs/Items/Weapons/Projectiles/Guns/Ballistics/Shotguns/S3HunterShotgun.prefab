@@ -36,6 +36,12 @@ PrefabInstance:
       propertyPath: clothData
       value: 
       objectReference: {fileID: 0}
+    - target: {fileID: 502150733691229820, guid: 3da1d244806a96340a48e959ecc816e4,
+        type: 3}
+      propertyPath: allClothingData.Array.data[0]
+      value: 
+      objectReference: {fileID: 11400000, guid: 1645d0a433ca4334b9a3e43f6bdcdf6b,
+        type: 2}
     - target: {fileID: 2182328595051184352, guid: 3da1d244806a96340a48e959ecc816e4,
         type: 3}
       propertyPath: FireRate
@@ -114,7 +120,7 @@ PrefabInstance:
     - target: {fileID: 3365730268199074847, guid: 3da1d244806a96340a48e959ecc816e4,
         type: 3}
       propertyPath: m_AssetId
-      value: 
+      value: 3da33d6eccc1bbe4cb49cdc7fd00662f
       objectReference: {fileID: 0}
     - target: {fileID: 3396079434555916715, guid: 3da1d244806a96340a48e959ecc816e4,
         type: 3}
@@ -175,6 +181,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8618752398906396102, guid: 3da1d244806a96340a48e959ecc816e4,
+        type: 3}
+      propertyPath: foreverID
+      value: 3da33d6eccc1bbe4cb49cdc7fd00662f
       objectReference: {fileID: 0}
     - target: {fileID: 8820110165900900908, guid: 3da1d244806a96340a48e959ecc816e4,
         type: 3}

@@ -6,6 +6,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using AdminTools;
 using UI;
+using NaughtyAttributes;
 
 // TODO: namespace me
 public class ChatUI : MonoBehaviour
@@ -26,6 +27,10 @@ public class ChatUI : MonoBehaviour
 	[SerializeField] private InputField InputFieldChat = null;
 	[SerializeField] private Transform thresholdMarkerBottom = null;
 	[SerializeField] private Transform thresholdMarkerTop = null;
+
+	[SerializeField, BoxGroup("Scroll Bar")] private Image scrollHandle = null;
+	[SerializeField, BoxGroup("Scroll Bar")] private Image scrollBackground = null;
+
 	[SerializeField] private AdminHelpChat adminHelpChat = null;
 	[SerializeField] private MentorHelpChat mentorHelpChat = null;
 
@@ -205,14 +210,11 @@ public class ChatUI : MonoBehaviour
 	/// </summary>
 	public void AddChatEntry(string message)
 	{
-		//Check for chat entry dupes:
-		if (allEntries.Count != 0)
+		// Check for chat entry duplication
+		if (allEntries.Count > 0 && message.Equals(allEntries[allEntries.Count - 1].Message))
 		{
-			if (message.Equals(allEntries[allEntries.Count - 1].Message))
-			{
-				allEntries[allEntries.Count - 1].AddChatDuplication();
-				return;
-			}
+			allEntries[allEntries.Count - 1].AddChatDuplication();
+			return;
 		}
 
 		GameObject entry = entryPool.GetChatEntry();
@@ -286,12 +288,9 @@ public class ChatUI : MonoBehaviour
 
 	private void DetermineScrollBarState(bool coolDownFade)
 	{
-		// TODO revisit when we work on chat system v2
-		/*
 		if ((allEntries.Count - hiddenEntries) < 20)
 		{
-			float fadeTime = 0f;
-			if (coolDownFade) fadeTime = 3f;
+			float fadeTime = coolDownFade ? 3f : 0f;
 			scrollBackground.CrossFadeAlpha(0.01f, fadeTime, false);
 			scrollHandle.CrossFadeAlpha(0.01f, fadeTime, false);
 		}
@@ -300,7 +299,6 @@ public class ChatUI : MonoBehaviour
 			scrollBackground.CrossFadeAlpha(1f, 0f, false);
 			scrollHandle.CrossFadeAlpha(1f, 0f, false);
 		}
-		*/
 	}
 
 	//This is an editor interface trigger event, do not delete
@@ -338,7 +336,7 @@ public class ChatUI : MonoBehaviour
 		parsedInput = Chat.ParsePlayerInput(InputFieldChat.text, chatContext);
 		if (Chat.IsValidToSend(parsedInput.ClearMessage))
 		{
-			_ = SoundManager.Play(SingletonSOSounds.Instance.Click01);
+			_ = SoundManager.Play(CommonSounds.Instance.Click01);
 			PlayerSendChat(parsedInput.ClearMessage);
 		}
 
@@ -363,7 +361,7 @@ public class ChatUI : MonoBehaviour
 
 	public void OnChatCancel()
 	{
-		_ = SoundManager.Play(SingletonSOSounds.Instance.Click01);
+		_ = SoundManager.Play(CommonSounds.Instance.Click01);
 		InputFieldChat.text = "";
 		CloseChatWindow();
 	}
@@ -447,7 +445,7 @@ public class ChatUI : MonoBehaviour
 	public void Toggle_ChannelPanel()
 	{
 		showChannels = !showChannels;
-		_ = SoundManager.Play(SingletonSOSounds.Instance.Click01);
+		_ = SoundManager.Play(CommonSounds.Instance.Click01);
 		if (showChannels)
 		{
 			channelPanel.gameObject.SetActive(true);
@@ -523,7 +521,7 @@ public class ChatUI : MonoBehaviour
 		radioEntry.GetComponentInChildren<Text>().text = channel.ToString();
 		radioEntry.GetComponentInChildren<Button>().onClick.AddListener(() =>
 		{
-			_ = SoundManager.Play(SingletonSOSounds.Instance.Click01);
+			_ = SoundManager.Play(CommonSounds.Instance.Click01);
 			DisableChannel(channel);
 		});
 		// Add it to a list for easy access later
@@ -591,7 +589,7 @@ public class ChatUI : MonoBehaviour
 
 	public void Toggle_Channel(bool turnOn)
 	{
-		_ = SoundManager.Play(SingletonSOSounds.Instance.Click01);
+		_ = SoundManager.Play(CommonSounds.Instance.Click01);
 		GameObject curObject = EventSystem.current.currentSelectedGameObject;
 		if (!curObject)
 		{

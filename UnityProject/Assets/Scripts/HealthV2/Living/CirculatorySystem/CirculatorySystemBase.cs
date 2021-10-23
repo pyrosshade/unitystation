@@ -21,6 +21,10 @@ namespace HealthV2
 		public Chemistry.Reagent CirculatedReagent => bloodType.CirculatedReagent;
 
 		[SerializeField]
+		[Required("Inital injecton of blood on player spawn")]
+		private int StartingBlood = 500;
+
+		[SerializeField]
 		[Required("Need to know our limits for how much blood we have and what not.")]
 		private CirculatoryInfo bloodInfo = null;
 		public CirculatoryInfo BloodInfo => bloodInfo;
@@ -35,7 +39,7 @@ namespace HealthV2
 		private void Awake()
 		{
 			healthMaster = GetComponent<LivingHealthMasterBase>();
-			AddFreshBlood(ReadyBloodPool, 5);
+			AddFreshBlood(ReadyBloodPool, StartingBlood);
 		}
 
 		///<summary>
@@ -47,6 +51,13 @@ namespace HealthV2
 			var bloodToAdd = new ReagentMix(BloodType, amount);
 			bloodToAdd.Add(CirculatedReagent, bloodType.GetGasCapacity(bloodToAdd));
 			bloodPool.Add(bloodToAdd);
+		}
+
+		public void Bleed(float amount)
+		{
+			var bloodLoss = new ReagentMix();
+			ReadyBloodPool.TransferTo(bloodLoss, amount);
+			MatrixManager.ReagentReact(bloodLoss, healthMaster.gameObject.RegisterTile().WorldPositionServer);
 		}
 	}
 }

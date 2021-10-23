@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine.Profiling;
 using System.Linq;
+using System.Text;
 using UnityEngine.Serialization;
 
 /// <summary>
@@ -28,6 +29,10 @@ public class UpdateManager : MonoBehaviour
 	private List<Action> fixedUpdateActions = new List<Action>();
 	private List<Action> lateUpdateActions = new List<Action>();
 	private List<TimedUpdate> periodicUpdateActions = new List<TimedUpdate>();
+
+	private Queue<Tuple<CallbackType, Action>> threadSafeAddQueue = new Queue<Tuple<CallbackType, Action>>();
+	private Queue<Tuple<Action, float>> threadSafeAddPeriodicQueue = new Queue<Tuple<Action, float>>();
+	private Queue<Tuple<CallbackType, Action>> threadSafeRemoveQueue = new Queue<Tuple<CallbackType, Action>>();
 
 	private static int NumberOfUpdatesAdded = 0;
 
@@ -93,16 +98,25 @@ public class UpdateManager : MonoBehaviour
 		instance.AddCallbackInternal(type, action);
 	}
 
-	public static void Add(Action action, float TimeInterval)
+	public static void SafeAdd(CallbackType type, Action action)
+	{
+		instance.threadSafeAddQueue.Enqueue(new Tuple<CallbackType, Action>(type, action));
+	}
+
+	public static void Add(Action action, float timeInterval)
 	{
 		if (Instance.periodicUpdateActions.Any(x => x.Action == action)) return;
 		TimedUpdate timedUpdate = Instance.GetTimedUpdates();
-		timedUpdate.SetUp(action, TimeInterval);
+		timedUpdate.SetUp(action, timeInterval);
 		timedUpdate.TimeTitleNext += NumberOfUpdatesAdded * 0.1f;
 		NumberOfUpdatesAdded++;
 		Instance.periodicUpdateActions.Add(timedUpdate);
 	}
 
+	public static void SafeAdd(Action action, float timeInterval)
+	{
+		instance.threadSafeAddPeriodicQueue.Enqueue(new Tuple<Action, float>(action, timeInterval));
+	}
 
 	public static void Add(ManagedNetworkBehaviour networkBehaviour)
 	{
@@ -250,6 +264,33 @@ public class UpdateManager : MonoBehaviour
 
 	private void Update()
 	{
+		if (threadSafeAddQueue.Count > 0)
+		{
+			for (int i = 0; i < threadSafeAddQueue.Count; i++)
+			{
+				var toQueue = threadSafeAddQueue.Dequeue();
+				Add(toQueue.Item1, toQueue.Item2);
+			}
+		}
+
+		if (threadSafeAddPeriodicQueue.Count > 0)
+		{
+			for (int i = 0; i < threadSafeAddPeriodicQueue.Count; i++)
+			{
+				var toQueue = threadSafeAddPeriodicQueue.Dequeue();
+				Add(toQueue.Item1, toQueue.Item2);
+			}
+		}
+
+		if (threadSafeRemoveQueue.Count > 0)
+		{
+			for (int i = 0; i < threadSafeRemoveQueue.Count; i++)
+			{
+				var toQueue = threadSafeRemoveQueue.Dequeue();
+				Remove(toQueue.Item1, toQueue.Item2);
+			}
+		}
+
 		CashedDeltaTime = Time.deltaTime;
 		for (int i = updateActions.Count; i >= 0; i--)
 		{
@@ -348,6 +389,67 @@ public class UpdateManager : MonoBehaviour
 			Action = null;
 			UpdateManager.instance.pooledTimedUpdates.Add(this);
 		}
+	}
+
+	[ContextMenu("List Updates")]
+	private void ListUpdates()
+	{
+		DebugLog(updateActions);
+		DebugLog(fixedUpdateActions);
+		DebugLog(lateUpdateActions);
+
+		void DebugLog(List<Action> type)
+		{
+			var updates = new Dictionary<String, int>();
+
+			foreach (var update in type)
+			{
+				if (updates.ContainsKey($"{update.Method.DeclaringType?.Name} {update.Method.Name}") == false)
+				{
+					updates.Add($"{update.Method.DeclaringType?.Name} {update.Method.Name}", 1);
+				}
+				else
+				{
+					updates[$"{update.Method.DeclaringType?.Name} {update.Method.Name}"]++;
+				}
+			}
+
+			var updateString = new StringBuilder();
+
+			updateString.AppendLine(nameof(type));
+
+			foreach (var update in updates)
+			{
+				updateString.AppendLine($"Name: {update.Key} Amount: {update.Value}");
+			}
+
+			Debug.LogError(updateString.ToString());
+		}
+
+		var periodicUpdate = new Dictionary<string, int>();
+
+		foreach (var update in periodicUpdateActions)
+		{
+			if (periodicUpdate.ContainsKey($"{update.Action.Method.DeclaringType?.Name} {update.Action.Method.Name}") == false)
+			{
+				periodicUpdate.Add($"{update.Action.Method.DeclaringType?.Name} {update.Action.Method.Name}", 1);
+			}
+			else
+			{
+				periodicUpdate[$"{update.Action.Method.DeclaringType?.Name} {update.Action.Method.Name}"]++;
+			}
+		}
+
+		var stringBuilder = new StringBuilder();
+
+		stringBuilder.AppendLine(nameof(periodicUpdateActions));
+
+		foreach (var update in periodicUpdate)
+		{
+			stringBuilder.AppendLine($"Name: {update.Key} Amount: {update.Value}");
+		}
+
+		Debug.LogError(stringBuilder.ToString());
 	}
 }
 

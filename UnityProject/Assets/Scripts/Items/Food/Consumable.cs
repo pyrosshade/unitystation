@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using HealthV2;
 using UnityEngine;
 
 /// <summary>
@@ -18,7 +19,7 @@ public abstract class Consumable : MonoBehaviour, ICheckedInteractable<HandApply
 		}
 
 		PlayerScript feeder = interaction.PerformerPlayerScript;
-		var feederSlot = feeder.ItemStorage.GetActiveHandSlot();
+		var feederSlot = feeder.DynamicItemStorage.GetActiveHandSlot();
 		if (feederSlot.Item == null)
 		{   //Already been eaten or the food is no longer in hand
 			return;
@@ -32,6 +33,14 @@ public abstract class Consumable : MonoBehaviour, ICheckedInteractable<HandApply
 	{
 		//this item shouldn't be a target
 		if (Validations.IsTarget(gameObject, interaction)) return false;
+		var Dissectible = interaction?.TargetObject.OrNull()?.GetComponent<Dissectible>();
+		if (Dissectible != null)
+		{
+			if (Dissectible.GetBodyPartIsopen)
+			{
+				return false;
+			}
+		}
 
 		if (!DefaultWillInteract.Default(interaction, side)) return false;
 

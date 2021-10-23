@@ -13,6 +13,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   healType: 0
+  StopsExternalBleeding: 0
+  HealsTraumaDamage: 0
+  TraumaDamageToHeal: 20
+  TraumaTypeToHeal: 0
 --- !u!1001 &5006578600938051199
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -103,7 +107,7 @@ PrefabInstance:
     - target: {fileID: 1821991397738242279, guid: c3138c3e8a46444199668b85070b1a39,
         type: 3}
       propertyPath: m_AssetId
-      value: 
+      value: 13186a514a60194429e94407b6cf1e0a
       objectReference: {fileID: 0}
     - target: {fileID: 1886097303314001423, guid: c3138c3e8a46444199668b85070b1a39,
         type: 3}
@@ -149,6 +153,11 @@ PrefabInstance:
         type: 2}
     - target: {fileID: 2175428465337217585, guid: c3138c3e8a46444199668b85070b1a39,
         type: 3}
+      propertyPath: CanBeUsedOnSelfOnHelpIntent
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2175428465337217585, guid: c3138c3e8a46444199668b85070b1a39,
+        type: 3}
       propertyPath: initialTraits.Array.data[0]
       value: 
       objectReference: {fileID: 11400000, guid: 72e1e989b0583fffd9f57618cafbb2b0,
@@ -165,6 +174,11 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 11400000, guid: 4fe051b7c2244f6449044f7590ee4930,
         type: 2}
+    - target: {fileID: 4640836244599001406, guid: c3138c3e8a46444199668b85070b1a39,
+        type: 3}
+      propertyPath: foreverID
+      value: 13186a514a60194429e94407b6cf1e0a
+      objectReference: {fileID: 0}
     - target: {fileID: 5592108624515032788, guid: c3138c3e8a46444199668b85070b1a39,
         type: 3}
       propertyPath: PresentSpriteSet

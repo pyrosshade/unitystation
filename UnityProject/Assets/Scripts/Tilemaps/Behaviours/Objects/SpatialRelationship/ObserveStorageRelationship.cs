@@ -1,6 +1,7 @@
 
 using System;
 using HealthV2;
+using Player.Movement;
 
 /// <summary>
 /// Relationship where one player is observing some interactable storage, which ends when they go out of
@@ -22,7 +23,7 @@ public class ObserveStorageRelationship : RangeRelationship
 		this.ObservedStorage = observedStorage;
 		this.ObserverPlayer = observer;
 		//check if the observed storage is in a player's inventory, and if so, populate the fields / event hooks
-		var rootStorage = observedStorage.ItemStorage.GetRootStorage();
+		var rootStorage = observedStorage.ItemStorage.GetRootStorageOrPlayer();
 		this.observedPlayerMove = rootStorage.GetComponent<PlayerMove>();
 		if (observedPlayerMove != null)
 		{

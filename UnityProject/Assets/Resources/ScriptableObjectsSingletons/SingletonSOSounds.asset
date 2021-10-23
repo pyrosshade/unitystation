@@ -243,6 +243,13 @@ MonoBehaviour:
       m_AssetGUID: 
       m_SubObjectName: 
       m_SubObjectType: 
+  AnnouncementCentCom:
+    SetLoadSetting: 0
+    AssetAddress: Assets/Prefabs/AI/centcomm_announcement.prefab
+    AssetReference:
+      m_AssetGUID: 
+      m_SubObjectName: 
+      m_SubObjectType: 
   AnnouncementAlert:
     SetLoadSetting: 0
     AssetAddress: Assets/Prefabs/Effects/Notice1.prefab
@@ -427,7 +434,7 @@ MonoBehaviour:
       m_SubObjectType: 
   wood3:
     SetLoadSetting: 0
-    AssetAddress: Assets/Prefabs/footsteps/wood/wood3.prefab
+    AssetAddress: Assets/Prefabs/footsteps/wood/FootstepWood3.prefab
     AssetReference:
       m_AssetGUID: 
       m_SubObjectName: 
@@ -463,6 +470,13 @@ MonoBehaviour:
   Tick:
     SetLoadSetting: 0
     AssetAddress: Assets/Prefabs/UI/Tick.prefab
+    AssetReference:
+      m_AssetGUID: 
+      m_SubObjectName: 
+      m_SubObjectType: 
+  Tap:
+    SetLoadSetting: 0
+    AssetAddress: Assets/Prefabs/Effects/Tap.prefab
     AssetReference:
       m_AssetGUID: 
       m_SubObjectName: 

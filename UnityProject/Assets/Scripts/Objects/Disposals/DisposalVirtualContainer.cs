@@ -15,7 +15,6 @@ namespace Objects.Disposals
 		[SerializeField]
 		private AddressableAudioSource ClangSound;
 
-		private Matrix Matrix;
 		private ObjectBehaviour ContainerBehaviour;
 
 		// transform.position seems to be the only reliable method after OnDespawnServer() has been called.
@@ -31,7 +30,6 @@ namespace Objects.Disposals
 
 		private void Awake()
 		{
-			Matrix = gameObject.RegisterTile().Matrix;
 			ContainerBehaviour = GetComponent<ObjectBehaviour>();
 		}
 
@@ -169,6 +167,7 @@ namespace Objects.Disposals
 		{
 			foreach (ObjectBehaviour item in containedItems)
 			{
+				if(item == null) continue;
 				ThrowItem(item, throwVector);
 			}
 		}
@@ -196,7 +195,7 @@ namespace Objects.Disposals
 			Vector3 vector = item.transform.rotation * throwVector;
 			ThrowInfo throwInfo = new ThrowInfo
 			{
-				ThrownBy = Matrix.transform.parent.gameObject,
+				ThrownBy = gameObject,
 				Aim = BodyPartType.Chest,
 				OriginWorldPos = ContainerWorldPosition,
 				WorldTrajectory = vector,

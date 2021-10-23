@@ -1,12 +1,14 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Systems.Clearance;
 using UnityEngine;
 using Mirror;
 using NaughtyAttributes;
 using Random = UnityEngine.Random;
 using UI.Action;
 using AddressableReferences;
+using UI.Items.PDA;
 
 namespace Items.PDA
 {
@@ -14,7 +16,11 @@ namespace Items.PDA
 	[RequireComponent(typeof(ItemLightControl))]
 	[RequireComponent(typeof(ItemAttributesV2))]
 	[RequireComponent(typeof(PDANotesNetworkHandler))]
-	public class PDALogic : NetworkBehaviour, ICheckedInteractable<HandApply>, ICheckedInteractable<InventoryApply>, IServerInventoryMove
+	public class PDALogic : NetworkBehaviour,
+		ICheckedInteractable<HandApply>,
+		ICheckedInteractable<InventoryApply>,
+		IServerInventoryMove,
+		IClearanceProvider
 	{
 		// TODO: consider moving uplink code into its own class (perhaps compatible with pen, headset uplinks)
 
@@ -50,6 +56,8 @@ namespace Items.PDA
 		[Tooltip("The overlay to be used in the GUI")]
 		[BoxGroup("GUI")]
 		public int OVERLAY;
+
+		public GUI_PDA PDAGui;
 
 		[Tooltip("How long the delay before the owner is informed of the uplink code " +
 			"(intedned to reduce information overload - likely just received objectives)")]
@@ -351,7 +359,16 @@ namespace Items.PDA
 						$"After a moment it disappears, your Telecrystal counter ticks up a second later";
 
 					Chat.AddExamineMsgFromServer(player, uplinkMessage);
+					UpdateTCCountGui();
 				}
+			}
+		}
+
+		public void UpdateTCCountGui()
+		{
+			if (PDAGui)
+			{
+				PDAGui.uplinkPage.UpdateTCCounter();
 			}
 		}
 
@@ -436,7 +453,7 @@ namespace Items.PDA
 
 			if (cost > UplinkTC) return;
 
-			var result = Spawn.ServerPrefab(objectRequested);
+			var result = Spawn.ServerPrefab(objectRequested,GetComponent<Pickupable>().ItemSlot.Player.WorldPosition, PrePickRandom: true);
 			if (result.Successful)
 			{
 				UplinkTC -= cost;
@@ -480,7 +497,7 @@ namespace Items.PDA
 			var bestSlot = GetBestSlot(slot.ItemObject);
 			if (!Inventory.ServerTransfer(slot, bestSlot))
 			{
-				Inventory.ServerDrop(IDSlot);
+				Inventory.ServerDrop(slot);
 			}
 		}
 
@@ -492,7 +509,7 @@ namespace Items.PDA
 				return default;
 			}
 
-			var playerStorage = player.Script.ItemStorage;
+			var playerStorage = player.Script.DynamicItemStorage;
 			return playerStorage.GetBestHandOrSlotFor(item);
 		}
 
@@ -527,6 +544,14 @@ namespace Items.PDA
 		{
 			if (HasAccess(access)) return;
 			accessSyncList.Add((int)access);
+		}
+
+		// All the methods above will be obsolete as soon as we migrate
+		public IEnumerable<Clearance> GetClearance()
+		{
+			var idClearance = IDCard.OrNull()?.GetComponent<IClearanceProvider>();
+
+			return idClearance?.GetClearance();
 		}
 
 		#endregion IDAccess

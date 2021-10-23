@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using Light2D;
 using Mirror;
 using UnityEngine;
@@ -19,7 +20,7 @@ namespace Blob
 	/// <summary>
 	/// Class which has the logic and data for the blob player
 	/// </summary>
-	public class BlobPlayer : NetworkBehaviour
+	public class BlobPlayer : NetworkBehaviour, IAdminInfo
 	{
 		[SerializeField] private GameObject blobCorePrefab = null;
 		[SerializeField] private GameObject blobNodePrefab = null;
@@ -200,8 +201,6 @@ namespace Blob
 
 			playerScript.SetPermanentName(overmindName);
 
-			playerScript.IsPlayerSemiGhost = true;
-
 			var result = Spawn.ServerPrefab(blobCorePrefab, playerSync.ServerPosition, gameObject.transform);
 
 			if (!result.Successful)
@@ -304,7 +303,7 @@ namespace Blob
 					string.Format(ReportTemplates.BioHazard,
 						"Caution! Biohazard expanding rapidly. Station structural integrity failing."),
 					MatrixManager.MainStationMatrix);
-				_ = SoundManager.PlayNetworked(SingletonSOSounds.Instance.Notice1);
+				_ = SoundManager.PlayNetworked(CommonSounds.Instance.Notice1);
 			}
 
 			if (isBlobGamemode && !nearlyWon && numOfNonSpaceBlobTiles >= numOfTilesForVictory / 1.25)
@@ -315,7 +314,7 @@ namespace Blob
 					string.Format(ReportTemplates.BioHazard,
 						"Alert! Station integrity near critical. Biomass sensor levels are off the charts."),
 					MatrixManager.MainStationMatrix);
-				_ = SoundManager.PlayNetworked(SingletonSOSounds.Instance.Notice1);
+				_ = SoundManager.PlayNetworked(CommonSounds.Instance.Notice1);
 			}
 
 			// Blob wins after number of blob tiles reached
@@ -334,7 +333,7 @@ namespace Blob
 					string.Format(ReportTemplates.BioHazard,
 						"Confirmed outbreak of level 5 biohazard aboard the station. All personnel must contain the outbreak."),
 					MatrixManager.MainStationMatrix);
-				_ = SoundManager.PlayNetworked(SingletonSOSounds.Instance.Outbreak5Announcement);
+				_ = SoundManager.PlayNetworked(CommonSounds.Instance.Outbreak5Announcement);
 			}
 
 			if (rerollTimer > 300f)
@@ -441,7 +440,6 @@ namespace Blob
 
 			SetBlobUI();
 			TurnOnClientLight();
-			playerScript.IsPlayerSemiGhost = true;
 		}
 
 		[Client]
@@ -551,8 +549,6 @@ namespace Blob
 		[TargetRpc]
 		private void TargetRpcTurnOffLight(NetworkConnection target)
 		{
-			playerScript.IsPlayerSemiGhost = false;
-			PlayerManager.LocalPlayerScript.IsPlayerSemiGhost = false;
 			overmindLightObject.SetActive(false);
 		}
 
@@ -567,8 +563,6 @@ namespace Blob
 		[Command]
 		public void CmdTryPlaceBlobOrAttack(Vector3Int worldPos)
 		{
-			worldPos.z = 0;
-
 			//Whether player can click anywhere, or if when they click it treats it as if they clicked the tile they're
 			//standing on (or around since validation checks adjacent)
 			if (!clickCoords)
@@ -721,7 +715,7 @@ namespace Blob
 
 					foreach (var playerDamage in currentStrain.playerDamages)
 					{
-						npcPlayerComponent.ApplyDamageToRandom(gameObject, playerDamage.damageDone, AttackType.Melee, playerDamage.damageType);
+						npcPlayerComponent.ApplyDamageToBodyPart(gameObject, playerDamage.damageDone, AttackType.Melee, playerDamage.damageType);
 					}
 
 					PlayAttackEffect(pos);
@@ -943,8 +937,6 @@ namespace Blob
 		[Command]
 		public void CmdTryPlaceStrongReflective(Vector3Int worldPos)
 		{
-			worldPos.z = 0;
-
 			if (!ValidateAction(worldPos)) return;
 
 			if (blobTiles.TryGetValue(worldPos, out var blob) && blob != null)
@@ -999,8 +991,6 @@ namespace Blob
 		[Command]
 		public void CmdTryPlaceOther(Vector3Int worldPos, BlobConstructs blobConstructs)
 		{
-			worldPos.z = 0;
-
 			if (!ValidateAction(worldPos)) return;
 
 			if (MatrixManager.IsSpaceAt(worldPos, true))
@@ -1124,8 +1114,6 @@ namespace Blob
 		[Command]
 		public void CmdRemoveBlob(Vector3Int worldPos)
 		{
-			worldPos.z = 0;
-
 			InternalRemoveBlob(worldPos);
 		}
 
@@ -1220,7 +1208,6 @@ namespace Blob
 					"The biohazard has been contained."),
 				MatrixManager.MainStationMatrix);
 
-			playerScript.IsPlayerSemiGhost = false;
 			clientLight = false;
 
 			if (connectionToClient != null)
@@ -1290,8 +1277,6 @@ namespace Blob
 		[Command]
 		public void CmdMoveCore(Vector3Int worldPos)
 		{
-			worldPos.z = 0;
-
 			if (blobTiles.TryGetValue(worldPos, out var blob) && blob != null)
 			{
 				SwitchCore(blob);
@@ -1542,7 +1527,7 @@ namespace Blob
 				blobStructure.lightSprite.Color.a = 0.2f;
 			}
 
-			blobStructure.spriteHandler.SetSpriteSO(blobStructure.activeSprite, NewvariantIndex: Random.Range(0, blobStructure.activeSprite.Variance.Count));
+			blobStructure.spriteHandler.SetSpriteSO(blobStructure.activeSprite, newVariantIndex: Random.Range(0, blobStructure.activeSprite.Variance.Count));
 			blobStructure.spriteHandler.SetColor(currentStrain.color);
 		}
 
@@ -1835,7 +1820,7 @@ namespace Blob
 
 			foreach (var offset in coords)
 			{
-				registerObject.Matrix.ReactionManager.ExposeHotspotWorldPosition((offset + pos).To2Int());
+				registerObject.Matrix.ReactionManager.ExposeHotspotWorldPosition((offset + pos).To2Int(), 500);
 			}
 		}
 
@@ -2100,6 +2085,17 @@ namespace Blob
 		}
 
 		#endregion
+
+		public string AdminInfoString()
+		{
+			var adminInfo = new StringBuilder();
+
+			adminInfo.AppendLine($"Resources: {resources}");
+			adminInfo.AppendLine($"Health: {health}%");
+			adminInfo.AppendLine($"Victory: {numOfNonSpaceBlobTiles / numOfTilesForVictory}%");
+
+			return adminInfo.ToString();
+		}
 	}
 
 	public enum BlobConstructs

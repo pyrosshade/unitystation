@@ -210,7 +210,7 @@ public class InteractableTiles : MonoBehaviour, IClientInteractable<PositionalHa
 			{
 				// Then we loop through each under floor layer in the matrix until we
 				// can find an interaction.
-				foreach (BasicTile underFloorTile in matrix.UnderFloorLayer.GetAllTilesByType<BasicTile>(localPosition))
+				foreach (BasicTile underFloorTile in matrix.MetaTileMap.GetAllTilesByType<BasicTile>(localPosition, LayerType.Underfloor))
 				{
 					// If pointing at electrical cable tile and player is holding
 					// Wirecutter in hand, we enable the cutting window and return false
@@ -218,7 +218,7 @@ public class InteractableTiles : MonoBehaviour, IClientInteractable<PositionalHa
 					// TODO: Check how many cables we have first. Only open the cable
 					//       cutting window when the number of cables exceeds 2.
 					if (underFloorTile is ElectricalCableTile &&
-						Validations.HasItemTrait(UIManager.Hands.CurrentSlot.ItemObject, CommonTraits.Instance.Wirecutter))
+						Validations.HasItemTrait(PlayerManager.LocalPlayerScript.DynamicItemStorage.GetActiveHandSlot().ItemObject, CommonTraits.Instance.Wirecutter))
 					{
 						// open cable cutting ui window instead of cutting cable
 						EnableCableCuttingWindow();
@@ -280,10 +280,9 @@ public class InteractableTiles : MonoBehaviour, IClientInteractable<PositionalHa
 
 		// convert world position to cell position and set Z value to Z value from message
 		Vector3Int targetCellPosition = matrix.MetaTileMap.WorldToCell(message.targetWorldPosition);
-		targetCellPosition.z = message.positionZ;
 
 		// get electical tile from targetCellPosition
-		ElectricalCableTile electricalCable = matrix.UnderFloorLayer.GetTileUsingZ(targetCellPosition) as ElectricalCableTile;
+		ElectricalCableTile electricalCable = TileManager.GetTile(message.TileType, message.Name) as ElectricalCableTile;
 
 		if (electricalCable == null) return;
 
@@ -350,7 +349,7 @@ public class InteractableTiles : MonoBehaviour, IClientInteractable<PositionalHa
 
 			if (basicTile.LayerType == LayerType.Underfloor)
 			{
-				foreach (var underFloorTile in matrix.UnderFloorLayer.GetAllTilesByType<BasicTile>(localPosition))
+				foreach (var underFloorTile in matrix.MetaTileMap.GetAllTilesByType<BasicTile>(localPosition, LayerType.Underfloor))
 				{
 					var underFloorApply = new TileApply(
 							performer, usedObject, intent, (Vector2Int) localPosition,
@@ -444,7 +443,7 @@ public class InteractableTiles : MonoBehaviour, IClientInteractable<PositionalHa
 		var wallMount = CheckWallMountOverlay();
 		if (wallMount)
 		{
-			Vector2 cameraPos = Camera.main.ScreenToWorldPoint(CommonInput.mousePosition);
+			Vector2 cameraPos = MouseUtils.MouseToWorldPos();
 			var tilePos = cameraPos.RoundToInt();
 			OrientationEnum orientation = OrientationEnum.Down;
 			Vector3Int PlaceDirection = PlayerManager.LocalPlayerScript.WorldPos - tilePos;
@@ -492,7 +491,7 @@ public class InteractableTiles : MonoBehaviour, IClientInteractable<PositionalHa
 			if (!instanceActive)
 			{
 				instanceActive = true;
-				Highlight.ShowHighlight(UIManager.Hands.CurrentSlot.ItemObject, true);
+				Highlight.ShowHighlight(PlayerManager.LocalPlayerScript.DynamicItemStorage.GetActiveHandSlot().ItemObject, true);
 			}
 
 			Vector3 spritePos = tilePos;
@@ -525,7 +524,8 @@ public class InteractableTiles : MonoBehaviour, IClientInteractable<PositionalHa
 
 	WallMountHandApplySpawn CheckWallMountOverlay()
 	{
-		var itemSlot = UIManager.Hands.CurrentSlot;
+
+		var itemSlot = PlayerManager.LocalPlayerScript?.DynamicItemStorage?.GetActiveHandSlot();
 		if (itemSlot == null || itemSlot.ItemObject == null)
 		{
 			return null;
@@ -555,11 +555,11 @@ public class InteractableTiles : MonoBehaviour, IClientInteractable<PositionalHa
 		var getTile = metaTileMap.GetTile(cellPos, LayerType.Walls) as BasicTile;
 		if (getTile == null || getTile.Mineable == false) return false;
 
-		SoundManager.PlayNetworkedAtPos(SingletonSOSounds.Instance.BreakStone, worldPosition);
+		SoundManager.PlayNetworkedAtPos(CommonSounds.Instance.BreakStone, worldPosition);
 		Spawn.ServerPrefab(getTile.SpawnOnDeconstruct, worldPosition,
 			count: getTile.SpawnAmountOnDeconstruct);
 		tileChangeManager.RemoveTile(cellPos, LayerType.Walls);
-		tileChangeManager.RemoveOverlaysOfType(cellPos, LayerType.Effects, TileChangeManager.OverlayType.Mining);
+		tileChangeManager.RemoveOverlaysOfType(cellPos, LayerType.Effects, OverlayType.Mining);
 
 		return true;
 	}
@@ -586,11 +586,7 @@ public class InteractableTiles : MonoBehaviour, IClientInteractable<PositionalHa
 
 		yield return WaitFor.Seconds(animationTime);
 
-		RemoveOverlay(cellPos, animatedTile);
+		tileChangeManager.RemoveOverlaysOfType(cellPos, LayerType.Effects, animatedTile.OverlayType);
 	}
 
-	private void RemoveOverlay(Vector3Int cellPos, AnimatedOverlayTile animatedTile)
-	{
-		tileChangeManager.RemoveOverlaysOfName(cellPos, LayerType.Effects, animatedTile.name);
-	}
 }

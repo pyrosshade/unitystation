@@ -22,7 +22,7 @@ public class ItemStorage : MonoBehaviour, IServerLifecycle, IServerInventoryMove
 	[SerializeField]
 	[FormerlySerializedAs("ItemStorageStructure")]
 	[Tooltip("Configuration describing the structure of the slots - i.e. what" +
-			 " the slots are / how many there are.")]
+	         " the slots are / how many there are.")]
 	private ItemStorageStructure itemStorageStructure = null;
 
 	/// <summary>
@@ -70,14 +70,25 @@ public class ItemStorage : MonoBehaviour, IServerLifecycle, IServerInventoryMove
 	//It can be null, or it can be a pickupable.(Health V2)
 	public event Action<Pickupable, Pickupable> ServerInventoryItemSlotSet;
 
-	[SerializeField]
-	private bool dropItemsOnDespawn;
+	[SerializeField] private bool dropItemsOnDespawn;
 
 	public bool UesAddlistPopulater = false;
 
 	[ShowIf(nameof(UesAddlistPopulater))] public PrefabListPopulater Populater;
 
 	private SpawnInfo spawnInfo;
+
+	public RegisterPlayer Player => player;
+	private RegisterPlayer player;
+
+	public void SetRegisterPlayer(RegisterPlayer registerPlayer)
+	{
+		player = registerPlayer;
+	}
+
+
+	[SerializeField] private GameObject ashPrefab;
+	public GameObject AshPrefab => ashPrefab;
 
 	private void Awake()
 	{
@@ -120,7 +131,8 @@ public class ItemStorage : MonoBehaviour, IServerLifecycle, IServerInventoryMove
 		{
 			ServerRemoveObserverPlayer(gameObject);
 		}
-		if(dropItemsOnDespawn)
+
+		if (dropItemsOnDespawn)
 			ServerDropAll();
 
 		//reclaim the space in the slot pool.
@@ -146,6 +158,28 @@ public class ItemStorage : MonoBehaviour, IServerLifecycle, IServerInventoryMove
 		return Inventory.ServerAdd(inGameObject, slot);
 	}
 
+	public bool ServerTransferGameObjectToItemSlot(GameObject outGameObject, ItemSlot Slot)
+	{
+		var item = outGameObject.GetComponent<ItemAttributesV2>();
+		if (item == null) return false;
+		var slot = GetSlotFromItem(outGameObject);
+		if (slot == null) return false;
+		return Inventory.ServerTransfer(slot, Slot);
+	}
+
+	public ItemSlot GetSlotFromItem(GameObject gameObject)
+	{
+		foreach (var itemSlot in  GetItemSlots())
+		{
+			if (itemSlot.Item == null) continue;
+			if (itemSlot.Item.gameObject == gameObject)
+			{
+				return itemSlot;
+			}
+		}
+		return null;
+	}
+
 	public bool ServerTryTransferFrom(ItemSlot inSlot)
 	{
 		var Item = inSlot.Item.GetComponent<ItemAttributesV2>();
@@ -156,25 +190,40 @@ public class ItemStorage : MonoBehaviour, IServerLifecycle, IServerInventoryMove
 		return Inventory.ServerTransfer(inSlot, slot, ReplacementStrategy.Cancel);
 	}
 
-	public bool ServerTryRemove(GameObject InGameObject, bool Destroy = false)
+	public bool ServerTryRemove(GameObject InGameObject, bool Destroy = false, Vector3? DroppedAtWorldPosition = null )
 	{
-		var Item = InGameObject.GetComponent<ItemAttributesV2>();
-		if (Item == null) return false;
-		var slots = GetItemSlots();
+		ItemAttributesV2 item = InGameObject.GetComponent<ItemAttributesV2>();
+		if (item == null) return false;
+		IEnumerable<ItemSlot> slots = GetItemSlots();
+		HealthV2.BodyPart mobHealth = InGameObject.GetComponent<HealthV2.BodyPart>();
 		foreach (var slot in slots)
 		{
-			if (slot.Item.gameObject == InGameObject)
+			if (slot.Item.OrNull()?.gameObject == InGameObject)
 			{
+				if(mobHealth != null)
+				{
+					if(mobHealth.CurrentBurnDamageLevel == TraumaDamageLevel.CRITICAL)
+					{
+						_ = Spawn.ServerPrefab(ashPrefab, mobHealth.HealthMaster.gameObject.RegisterTile().WorldPosition);
+						_ = Despawn.ServerSingle(slot.Item.gameObject);
+						return true;
+					}
+				}
 				if (Destroy)
 				{
 					return Inventory.ServerDespawn(slot);
 				}
 				else
 				{
-					return Inventory.ServerDrop(slot);
-
+					if (DroppedAtWorldPosition != null)
+					{
+						return Inventory.ServerDrop(slot, DroppedAtWorldPosition.GetValueOrDefault());
+					}
+					else
+					{
+						return Inventory.ServerDrop(slot);
+					}
 				}
-
 			}
 		}
 
@@ -222,17 +271,32 @@ public class ItemStorage : MonoBehaviour, IServerLifecycle, IServerInventoryMove
 	/// will simply return this
 	/// </summary>
 	/// <returns></returns>
-	public ItemStorage GetRootStorage()
+	public GameObject GetRootStorageOrPlayer()
 	{
-		ItemStorage storage = this;
-		var pickupable = storage.GetComponent<Pickupable>();
-		while (pickupable != null && pickupable.ItemSlot != null)
+		try
 		{
-			storage = pickupable.ItemSlot.ItemStorage;
-			pickupable = storage.GetComponent<Pickupable>();
-		}
+			ItemStorage storage = this;
+			var pickupable = storage.GetComponent<Pickupable>();
+			while (pickupable != null && pickupable.ItemSlot != null)
+			{
+				storage = pickupable.ItemSlot.ItemStorage;
+				pickupable = storage.GetComponent<Pickupable>();
+				if (pickupable == null)
+				{
+					if (storage.player != null)
+					{
+						return storage.player.gameObject;
+					}
+				}
+			}
 
-		return storage;
+			return storage.gameObject;
+		}
+		catch (NullReferenceException exception)
+		{
+			Logger.LogError("Caught NRE in ItemStorage: " + exception.Message, Category.Inventory);
+			return null;
+		}
 	}
 
 	/// <summary>
@@ -260,8 +324,9 @@ public class ItemStorage : MonoBehaviour, IServerLifecycle, IServerInventoryMove
 	{
 		if (itemStorageStructure == null)
 		{
-			Logger.LogErrorFormat("{0} has ItemStorage but no defined ItemStorageStructure. Item storage will not work." +
-			                      " Please define an ItemStorageStructure for this prefab.", Category.Inventory, name);
+			Logger.LogErrorFormat(
+				"{0} has ItemStorage but no defined ItemStorageStructure. Item storage will not work." +
+				" Please define an ItemStorageStructure for this prefab.", Category.Inventory, name);
 			return;
 		}
 
@@ -331,10 +396,12 @@ public class ItemStorage : MonoBehaviour, IServerLifecycle, IServerInventoryMove
 	{
 		return ItemSlot.Get(this, named);
 	}
+
 	public ItemSlot GetNamedItemSlot(NamedSlot named)
 	{
 		return ItemSlot.GetNamed(this, named);
 	}
+
 	public ItemSlot GetIndexedItemSlot(int slotIndex)
 	{
 		return ItemSlot.GetIndexed(this, slotIndex);
@@ -361,7 +428,6 @@ public class ItemStorage : MonoBehaviour, IServerLifecycle, IServerInventoryMove
 	///
 	/// As you should expect, this can create a bit of garbage so use sparingly.
 	///
-	/// DOES NOT CHECK SUB-SUBSTORAGES.
 	/// </summary>
 	public IEnumerable<ItemSlot> GetItemSlotTree()
 	{
@@ -377,15 +443,16 @@ public class ItemStorage : MonoBehaviour, IServerLifecycle, IServerInventoryMove
 			return new[] {slot};
 		}
 
-		var itemStorage = slot.Item.GetComponent<ItemStorage>();
-		if (itemStorage != null)
+		var itemStorage = slot.Item.GetComponents<ItemStorage>();
+		var ListThis = new List<ItemSlot>();
+		foreach (var itemStorages in itemStorage)
 		{
-			return itemStorage.GetItemSlots().Concat(new[] {slot});
+			ListThis.AddRange(itemStorages.GetItemSlotTree());
 		}
-		else
-		{
-			return new[] {slot};
-		}
+
+		var ToReturn = ListThis.ToArray().Concat(new[] {slot});
+		return ToReturn;
+
 	}
 
 	public IEnumerable<ItemSlot> GetIndexedSlots()
@@ -431,70 +498,6 @@ public class ItemStorage : MonoBehaviour, IServerLifecycle, IServerInventoryMove
 	}
 
 	/// <summary>
-	/// Returns the active hand slot if not occupied, else the hand that is free.
-	/// Returns null if no hands were available.
-	/// </summary>
-	public ItemSlot GetBestHand()
-	{
-		if (playerNetworkActions == null)
-		{
-			return default;
-		}
-
-		var activeHand = GetNamedItemSlot(playerNetworkActions.activeHand);
-		if (activeHand.IsEmpty)
-		{
-			return activeHand;
-		}
-
-		var leftHand = GetNamedItemSlot(NamedSlot.leftHand);
-		if (leftHand != activeHand && leftHand.IsEmpty)
-		{
-			return leftHand;
-		}
-
-		var rightHand = GetNamedItemSlot(NamedSlot.rightHand);
-		if (rightHand != activeHand && rightHand.IsEmpty)
-		{
-			return rightHand;
-		}
-
-		return default;
-	}
-
-	/// <summary>
-	/// Returns the active hand slot if not occupied, else the hand that is free.
-	/// If no hand is free, defaults to <see cref="GetBestSlotFor(GameObject)"/> behaviour.
-	/// </summary>
-	public ItemSlot GetBestHandOrSlotFor(GameObject item)
-	{
-		ItemSlot bestHand = GetBestHand();
-
-		if (bestHand != null)
-		{
-			return bestHand;
-		}
-
-		return GetBestSlotFor(item);
-	}
-
-	/// <summary>
-	/// Gets all slots in which a gas container can be stored and used
-	/// </summary>
-	/// <returns></returns>
-	public IEnumerable<ItemSlot> GetGasSlots()
-	{
-		return GetItemSlots().Where(its =>
-			GasUseSlots.Contains(its.SlotIdentifier.NamedSlot.GetValueOrDefault(NamedSlot.none)));
-	}
-
-	/// <summary>
-	/// Slots gas containers can be used from.
-	/// </summary>
-	public static readonly NamedSlot[] GasUseSlots = 	{NamedSlot.leftHand, NamedSlot.rightHand, NamedSlot.storage01, NamedSlot.storage02,
-		NamedSlot.suitStorage, NamedSlot.back, NamedSlot.belt};
-
-	/// <summary>
 	/// Gets the highest indexed slot that is currently occupied. Null if none are occupied
 	/// </summary>
 	/// <returns></returns>
@@ -503,56 +506,6 @@ public class ItemStorage : MonoBehaviour, IServerLifecycle, IServerInventoryMove
 		return GetIndexedSlots().LastOrDefault(ids => ids.Item != null);
 	}
 
-	/// <summary>
-	/// The item slot representing the active hand. Null if this is not a player.
-	/// </summary>
-	/// <returns></returns>
-	public ItemSlot GetActiveHandSlot()
-	{
-		if (playerNetworkActions == null) return null;
-		return GetNamedItemSlot(playerNetworkActions.activeHand);
-	}
-
-	/// <summary>
-	/// The item slot representing an empty hand. Null if this is not a player or both are full.
-	/// Checks active hand first
-	/// </summary>
-	/// <returns></returns>
-	public ItemSlot GetEmptyHandSlot()
-	{
-		if (playerNetworkActions == null) return null;
-
-		var active = GetNamedItemSlot(playerNetworkActions.activeHand);
-
-		if (active.IsEmpty)
-		{
-			return active;
-		}
-
-		if (playerNetworkActions.activeHand == NamedSlot.leftHand)
-		{
-			var rightHand = GetNamedItemSlot(NamedSlot.rightHand);
-
-			if (rightHand.IsEmpty)
-			{
-				return rightHand;
-			}
-
-			return null;
-		}
-
-		if (playerNetworkActions.activeHand == NamedSlot.rightHand)
-		{
-			var leftHand = GetNamedItemSlot(NamedSlot.leftHand);
-
-			if (leftHand.IsEmpty)
-			{
-				return leftHand;
-			}
-		}
-
-		return null;
-	}
 
 	/// <summary>
 	/// Server only (can be called client side but has no effect).
@@ -600,7 +553,7 @@ public class ItemStorage : MonoBehaviour, IServerLifecycle, IServerInventoryMove
 	public void ServerRemoveAllObserversExceptOwner()
 	{
 		if (!CustomNetworkManager.IsServer) return;
-		var rootStorage = GetRootStorage();
+		var rootStorage = GetRootStorageOrPlayer();
 		//have to do it this way so we don't get a concurrent modification error
 		var observersToRemove = serverObserverPlayers.Where(obs => obs != rootStorage.gameObject).ToArray();
 		foreach (var observerPlayer in observersToRemove)
@@ -620,13 +573,13 @@ public class ItemStorage : MonoBehaviour, IServerLifecycle, IServerInventoryMove
 	}
 
 	/// <summary>
-	/// Drops all items in all slots at our current position.
+	/// Drops all items in all slots.
 	/// </summary>
-	public void ServerDropAll()
+	public void ServerDropAll(Vector2? worldTargetVector = null)
 	{
 		foreach (var itemSlot in GetItemSlots())
 		{
-			Inventory.ServerDrop(itemSlot);
+			Inventory.ServerDrop(itemSlot, worldTargetVector);
 		}
 	}
 }

@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using Mirror;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Objects.Wallmounts;
-using Shuttles;
-using UnityEditor.SceneManagement;
 using Object = UnityEngine.Object;
+
 
 public class Tools : Editor
 {
@@ -20,23 +20,18 @@ public class Tools : Editor
 		public PowerTypeCategory wireType = PowerTypeCategory.Transformer;
 	}
 
-	[MenuItem("Tools/Refresh Directionals")]
+	[MenuItem("Mapping/Refresh Directionals")]
 	private static void RefreshDirectionals()
 	{
 		var allDirs = FindObjectsOfType<Directional>();
-
-		for (int i = allDirs.Length - 1; i > 0; i--)
+		foreach (var directional in allDirs)
 		{
-			if(allDirs[i].onEditorDirectionChange != null)
-				allDirs[i].onEditorDirectionChange.Invoke();
-
-			allDirs[i].transform.localEulerAngles = Vector3.zero;
+			directional.ChangeDirectionInEditor();
 		}
-
 		Logger.Log($"Refreshed {allDirs.Length} directionals", Category.Editor);
 	}
 
-	[MenuItem("Networking/Set all sceneids to 0")]
+	[MenuItem("Mapping/Set all sceneids to 0")]
 	private static void SetAllSceneIdsToNull()
 	{
 		var allNets = FindObjectsOfType<NetworkIdentity>();
@@ -104,7 +99,7 @@ public class Tools : Editor
         Debug.Log($"{allNets.Count} net components found in prefabs");
     }
 
-    [MenuItem("Tools/Save all scenes")]
+    [MenuItem("Mapping/Save all scenes")]
     private static void SaveAllScenes()
     {
 	    var scenesGUIDs = AssetDatabase.FindAssets("t:Scene",new string[] {"Assets/Scenes"});
@@ -295,5 +290,28 @@ public class Tools : Editor
 		}
 
 		return null;
+	}
+
+	/// <summary>Snap all allowed objects to the middle of the nearest tile.</summary>
+	[MenuItem("Tools/Mapping/Snap to Grid All Applicable Objects")]
+	private static void CenterObjects()
+	{
+		int count = 0;
+		foreach (GameObject gameObject in SceneManager.GetActiveScene().GetRootGameObjects())
+		{
+			foreach (var cnt in gameObject.GetComponentsInChildren<CustomNetTransform>())
+			{
+				if (cnt.SnapToGridOnStart == false) continue;
+
+				var initialPosition = cnt.transform.position;
+				cnt.transform.position = cnt.transform.position.RoundToInt();
+				if (cnt.transform.position != initialPosition)
+				{
+					count++;
+				}
+			}
+		}
+
+		Logger.Log($"Centered {count} objects!");
 	}
 }

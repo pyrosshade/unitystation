@@ -3,6 +3,7 @@ using NaughtyAttributes;
 using ScriptableObjects;
 using TileManagement;
 using AddressableReferences;
+using ScriptableObjects.Audio;
 using UnityEngine;
 using UnityEngine.Serialization;
 using UnityEngine.Tilemaps;
@@ -36,8 +37,17 @@ public abstract class BasicTile : LayerTile
 	[Tooltip("How long does it take to mine this tile?")] [SerializeField] [ShowIf(nameof(mineable))]
 	private float miningTime = 5f;
 
+	[Tooltip("Can a player construct above this tile?")]
+	public bool constructable;
+
 	[Range(0.0f, 1f)] [Tooltip("RadiationPassability 0 = 100% Resistant")] [SerializeField]
 	public float RadiationPassability = 1;
+
+	[Range(0f, 1f)] [Tooltip("ThermalConductivity 0 = 100% Conductivity")] [SerializeField]
+	public float ThermalConductivity = 0.05f;
+
+	[Range(0f, 1000000f)] [Tooltip("Heat Capacity 0 to 1000000")] [SerializeField]
+	public float HeatCapacity = 10000;
 
 	/// <summary>
 	/// Can this tile be mined?
@@ -189,9 +199,8 @@ public abstract class BasicTile : LayerTile
 		return IsAtmosPassable() && !isSealed;
 	}
 
-
 	//yeah,This needs to be moved out into its own class
-	public virtual bool AreUnderfloorSame(Matrix4x4 thisTransformMatrix, BasicTile basicTile, Matrix4x4 TransformMatrix)
+	public virtual bool IsTileRepeated(Matrix4x4 thisTransformMatrix, BasicTile basicTile, Matrix4x4 TransformMatrix, MetaDataNode metaDataNode)
 	{
 		if (basicTile == this)
 		{

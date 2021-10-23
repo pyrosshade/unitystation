@@ -14,6 +14,7 @@ using Messages.Server.AdminTools;
 using Newtonsoft.Json;
 using UI;
 
+
 /// <summary>
 /// Admin Controller for players
 /// </summary>
@@ -392,8 +393,6 @@ public partial class PlayerList
 			return false;
 		}
 		var Userid = unverifiedUserid;
-		var Token = unverifiedToken;
-
 
 		//Adds server to admin list if not already in it.
 		if (Userid == ServerData.UserID && !adminUsers.Contains(Userid))
@@ -408,7 +407,7 @@ public partial class PlayerList
 
 			if (user == null) return false;
 
-			var newToken = System.Guid.NewGuid().ToString();
+			var newToken = Guid.NewGuid().ToString();
 			if (!loggedInAdmins.ContainsKey(Userid))
 			{
 				loggedInAdmins.Add(Userid, newToken);
@@ -431,8 +430,7 @@ public partial class PlayerList
 			return false;
 		}
 
-
-		//banlist checking:
+		// banlist checking:
 		var banEntry = banList?.CheckForEntry(Userid, unverifiedConnPlayer.Connection.address, unverifiedClientId);
 		if (banEntry != null)
 		{
@@ -561,7 +559,7 @@ public partial class PlayerList
 	/// </summary>
 	/// <param name="connPlayer"></param>
 	/// <returns></returns>
-	private List<JobBanEntry> ClientAskingAboutJobBans(ConnectedPlayer connPlayer)
+	public List<JobBanEntry> ClientAskingAboutJobBans(ConnectedPlayer connPlayer)
 	{
 		if (connPlayer.Equals(ConnectedPlayer.Invalid))
 		{
@@ -591,7 +589,7 @@ public partial class PlayerList
 		var index = jobBanPlayerEntry.Value.Item2;
 
 		//Check each job to see if expired
-		foreach (var jobBan in jobBanPlayerEntry.Value.Item1.jobBanEntry)
+		foreach (var jobBan in jobBanPlayerEntry.Value.Item1.jobBanEntry.ToArray())
 		{
 			var entryTime = DateTime.ParseExact(jobBan.dateTimeOfBan, "O", CultureInfo.InvariantCulture);
 			var totalMins = Mathf.Abs((float)(entryTime - DateTime.Now).TotalMinutes);
@@ -737,40 +735,6 @@ public partial class PlayerList
 
 	#region JobBanNetMessages
 
-	public class ClientJobBanDataMessage : ClientMessage<ClientJobBanDataMessage.NetMessage>
-	{
-		public struct NetMessage : NetworkMessage
-		{
-			public string PlayerID;
-		}
-
-		public override void Process(NetMessage msg)
-		{
-			//Server Stuff here
-			var conn = PlayerList.Instance.GetByUserID(msg.PlayerID);
-
-			if (conn == null)
-			{
-				Logger.LogError("Connection was NULL", Category.Jobs);
-				return;
-			}
-
-			var jobBanEntries = PlayerList.Instance.ClientAskingAboutJobBans(conn);
-
-			ServerSendsJobBanDataMessage.Send(conn.Connection, jobBanEntries);
-		}
-
-		public static NetMessage Send(string playerID)
-		{
-			NetMessage msg = new NetMessage
-			{
-				PlayerID = playerID
-			};
-			Send(msg);
-			return msg;
-		}
-	}
-
 	public class ServerSendsJobBanDataMessage : ServerMessage<ServerSendsJobBanDataMessage.NetMessage>
 	{
 		public struct NetMessage : NetworkMessage
@@ -800,8 +764,6 @@ public partial class PlayerList
 	{
 		public struct NetMessage : NetworkMessage
 		{
-			public string AdminID;
-			public string AdminToken;
 			public string PlayerID;
 			public string Reason;
 			public bool IsPerma;
@@ -813,21 +775,20 @@ public partial class PlayerList
 
 		public override void Process(NetMessage msg)
 		{
-			var admin = PlayerList.Instance.GetAdmin(msg.AdminID, msg.AdminToken);
-			if (admin == null) return;
+			if (IsFromAdmin() == false) return;
 
-			//Server Stuff here
+			// Server Stuff here
 
-			PlayerList.Instance.ProcessJobBanRequest(msg.AdminID, msg.PlayerID, msg.Reason,
-				msg.IsPerma, msg.Minutes, msg.JobType, msg.KickAfter, msg.GhostAfter);
+			Instance.ProcessJobBanRequest(
+					SentByPlayer.UserId, msg.PlayerID, msg.Reason,
+					msg.IsPerma, msg.Minutes, msg.JobType, msg.KickAfter, msg.GhostAfter);
 		}
 
-		public static NetMessage Send(string adminID, string adminToken, string playerID, string reason, bool isPerma, int minutes, JobType jobType, bool kickAfter, bool ghostAfter)
+		public static NetMessage Send(
+				string playerID, string reason, bool isPerma, int minutes, JobType jobType, bool kickAfter, bool ghostAfter)
 		{
 			NetMessage msg = new NetMessage
 			{
-				AdminID = adminID,
-				AdminToken = adminToken,
 				PlayerID = playerID,
 				Reason = reason,
 				IsPerma = isPerma,
@@ -836,6 +797,7 @@ public partial class PlayerList
 				KickAfter = kickAfter,
 				GhostAfter = ghostAfter
 			};
+
 			Send(msg);
 			return msg;
 		}
@@ -1117,7 +1079,12 @@ public partial class PlayerList
 				{
 					reason = "Player was kicked after job ban process.";
 					StartCoroutine(KickPlayer(p, reason, false));
+					continue;
 				}
+
+				//Send update if they are still in the game
+				if(p.Connection == null) continue;
+				ServerSendsJobBanDataMessage.Send(p.Connection, ClientAskingAboutJobBans(p));
 			}
 		}
 		else

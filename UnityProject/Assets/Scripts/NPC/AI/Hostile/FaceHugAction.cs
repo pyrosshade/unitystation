@@ -1,6 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
+using Clothing;
 using UnityEngine;
+using Doors;
+using Systems.Mob;
+using Random = UnityEngine.Random;
 using AddressableReferences;
 using HealthV2;
 using Messages.Server.SoundMessages;
@@ -15,13 +20,13 @@ namespace Systems.MobAIs
 		public GameObject MaskObject {get{return maskObject;}}
 		[FormerlySerializedAs("Bite")] [SerializeField] private AddressableAudioSource bite = null;
 
-		protected override void ActOnLivingV2(Vector3 dir, LivingHealthMasterBase healthBehaviour)
+		protected override void ActOnLivingV2(Vector3 dir, LivingHealthMasterBase livingHealth)
 		{
-			TryFacehug(dir, healthBehaviour);
+			TryFacehug(dir, livingHealth);
 		}
-		private void TryFacehug(Vector3 dir, LivingHealthMasterBase player)
+		private void TryFacehug(Vector3 dir, LivingHealthMasterBase livingHealth)
 		{
-			var playerInventory = player.gameObject.GetComponent<PlayerScript>()?.Equipment;
+			var playerInventory = livingHealth.gameObject.GetComponent<PlayerScript>()?.Equipment;
 
 			if (playerInventory == null)
 			{
@@ -46,18 +51,18 @@ namespace Systems.MobAIs
 
 			Chat.AddAttackMsgToChat(
 				gameObject,
-				player.gameObject,
+				livingHealth.gameObject,
 				BodyPartType.Head,
 				null,
 				verb);
 
 			AudioSourceParameters audioSourceParameters = new AudioSourceParameters(pitch: 1f);
-			SoundManager.PlayNetworkedAtPos(bite, player.gameObject.RegisterTile().WorldPositionServer,
-				audioSourceParameters, true, player.gameObject);
+			SoundManager.PlayNetworkedAtPos(bite, livingHealth.gameObject.RegisterTile().WorldPositionServer,
+				audioSourceParameters, true, livingHealth.gameObject);
 
 			if (success)
 			{
-				RegisterPlayer registerPlayer = player.gameObject.GetComponent<RegisterPlayer>();
+				RegisterPlayer registerPlayer = livingHealth.gameObject.GetComponent<RegisterPlayer>();
 				Facehug(playerInventory, registerPlayer);
 			}
 
@@ -67,10 +72,15 @@ namespace Systems.MobAIs
 			var result = Spawn.ServerPrefab(maskObject);
 			var mask = result.GameObject;
 
-			Inventory.ServerAdd(
-				mask,
-				playerInventory.ItemStorage.GetNamedItemSlot(NamedSlot.mask),
-				ReplacementStrategy.DespawnOther);
+			foreach (var itemSlot in playerInventory.ItemStorage.GetNamedItemSlots(NamedSlot.mask))
+			{
+				Inventory.ServerAdd(
+					mask,
+					itemSlot,
+					ReplacementStrategy.DespawnOther);
+				break;
+			}
+
 
 			_ = Despawn.ServerSingle(gameObject);
 		}
@@ -84,36 +94,48 @@ namespace Systems.MobAIs
 		private bool HasAntihuggerItem(Equipment equipment)
 		{
 			bool antiHugger = false;
-
+			bool DoubleBreak = false;
 			foreach (var slot in faceSlots)
 			{
-				var item = equipment.ItemStorage.GetNamedItemSlot(slot)?.Item;
-				if (item == null || item.gameObject == null)
+				foreach (var itemSlot in equipment.ItemStorage.GetNamedItemSlots(slot))
 				{
-					continue;
+					var item = itemSlot?.Item;
+					if (item == null || item.gameObject == null)
+					{
+						continue;
+					}
+
+					if (!Validations.HasItemTrait(item.gameObject, CommonTraits.Instance.AntiFacehugger))
+					{
+						Inventory.ServerDrop(itemSlot);
+					}
+					else
+					{
+						var integrity = item.gameObject.GetComponent<Integrity>();
+						if (integrity != null)
+						{
+							// Your protection might break!
+							integrity.ApplyDamage(7.5f, AttackType.Melee, DamageType.Brute);
+						}
+
+						DoubleBreak = true;
+						antiHugger = true;
+						break;
+					}
 				}
 
-				if (!Validations.HasItemTrait(item.gameObject, CommonTraits.Instance.AntiFacehugger))
+				if (DoubleBreak)
 				{
-					Inventory.ServerDrop(equipment.ItemStorage.GetNamedItemSlot(slot));
+					break;
 				}
-				else
-				{
-					var integrity = item.gameObject.GetComponent<Integrity>();
-					if (integrity != null)
-					{
-						// Your protection might break!
-						integrity.ApplyDamage(7.5f, AttackType.Melee, DamageType.Brute);
-					}
-					antiHugger = true;
-				}
+
 			}
 			return antiHugger;
 		}
 		private readonly List<NamedSlot> faceSlots = new List<NamedSlot>()
 		{
-			NamedSlot.eyes,
 			NamedSlot.head,
+			NamedSlot.eyes,
 			NamedSlot.mask
 		};
 	}

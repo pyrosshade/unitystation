@@ -9,8 +9,7 @@ using UnityEditor.Build.Reporting;
 using UnityEngine;
 using NaughtyAttributes.Editor;
 
-
-namespace Util
+namespace Core.Editor
 {
 	/// <summary>
 	/// <para>This editor tool allows to quickly build the game by disabling unneeded scenes.</para>
@@ -88,6 +87,11 @@ namespace Util
 		{
 			EditorGUILayout.Space();
 
+			EditorGUILayout.HelpBox("Automatically sets build settings to get MVB " +
+					"(minimum viable build) by including only necessary scenes.\n\n" +
+					"Operates independently of the main build window. Settings are persistent and won't be picked up by git " +
+					"(except Quick Load which is handled externally, so be sure to not commit that change).", MessageType.Info);
+
 			NaughtyEditorGUI.PropertyField_Layout(mainStationProperty, false);
 			mainStationScene = mainStationProperty.stringValue;
 			ValidateMainStationScene(mainStationScene);
@@ -114,7 +118,7 @@ namespace Util
 			if (isDevelopmentBuild)
 			{
 				var content = new GUIContent(
-						"Scripts Only",
+						"    Scripts Only",
 						"Recompiles scripts only. Results in the fastest build, but only works " +
 						"if no other assets have been modified since the previous build.");
 				isScriptsOnly = EditorGUILayout.Toggle(content, isScriptsOnly);
@@ -122,7 +126,7 @@ namespace Util
 			else
 			{
 				GUI.enabled = false;
-				isScriptsOnly = EditorGUILayout.Toggle("Scripts Only", false);
+				isScriptsOnly = EditorGUILayout.Toggle("    Scripts Only", false);
 				GUI.enabled = true;
 			}
 
@@ -140,7 +144,7 @@ namespace Util
 
 			GUILayout.Space(20);
 
-			if (BuildButton())
+			if (EditorUIUtils.BigAssButton("Build"))
 			{
 				Build();
 			}
@@ -188,18 +192,6 @@ namespace Util
 			SetPathForDisplay(buildPath);
 		}
 
-		private bool BuildButton()
-		{
-			GUIStyle buildBtnStyle = new GUIStyle(GUI.skin.button);
-			buildBtnStyle.padding = new RectOffset(30, 30, 8, 8);
-
-			GUIContent btnTxt = new GUIContent("Build");
-			Rect rect = GUILayoutUtility.GetRect(btnTxt, buildBtnStyle, GUILayout.ExpandWidth(false));
-			rect.center = new Vector2(EditorGUIUtility.currentViewWidth / 2, rect.center.y);
-
-			return GUI.Button(rect, btnTxt, GUI.skin.button);
-		}
-
 		private void UpdateGameManager(bool isQuickLoad)
 		{
 			if (gameManager == null)
@@ -241,7 +233,7 @@ namespace Util
 				buildPlayerOptions.options |= BuildOptions.Development;
 				if (isScriptsOnly)
 				{
-					buildPlayerOptions.options |= BuildOptions.Development;
+					buildPlayerOptions.options |= BuildOptions.BuildScriptsOnly;
 				}
 			}
 

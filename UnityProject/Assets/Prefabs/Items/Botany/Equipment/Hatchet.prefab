@@ -43,6 +43,7 @@ SpriteRenderer:
   m_CastShadows: 0
   m_ReceiveShadows: 0
   m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
   m_MotionVectors: 1
   m_LightProbeUsage: 0
   m_ReflectionProbeUsage: 0
@@ -100,9 +101,8 @@ MonoBehaviour:
   PresentSpriteSet: {fileID: 11400000, guid: d498978eac9a5784eb974e6bf69db183, type: 2}
   randomInitialSprite: 0
   pushTextureOnStartUp: 1
-  variantIndex: 0
+  initialVariantIndex: 0
   palette: []
-  Sprites: []
 --- !u!1 &5970802900729141845
 GameObject:
   m_ObjectHideFlags: 0
@@ -122,9 +122,9 @@ GameObject:
   - component: {fileID: 6001070637509285921}
   - component: {fileID: 6000834892531239841}
   - component: {fileID: 6001248824644544481}
-  - component: {fileID: 4736744346245642342}
   - component: {fileID: -3445058822612490815}
   - component: {fileID: -2745594047464328484}
+  - component: {fileID: -5694666669392884321}
   m_Layer: 10
   m_Name: Hatchet
   m_TagString: Abstract
@@ -212,10 +212,13 @@ MonoBehaviour:
   exportMessage: 
   initialTraits:
   - {fileID: 11400000, guid: c5cd0088ff4eb470dab3bb1b75fd4581, type: 2}
+  - {fileID: 11400000, guid: 5eafba0d7388d428c8e08ed1b5d5d260, type: 2}
   initialSize: 2
   hitDamage: 12
   damageType: 0
   throwDamage: 15
+  traumaDamageChance: 35
+  TraumaticDamageType: 1
   throwSpeed: 3
   throwRange: 4
   hitSound:
@@ -232,6 +235,7 @@ MonoBehaviour:
   - chopped
   - hacked
   - cut
+  CanBeUsedOnSelfOnHelpIntent: 0
   itemSprites:
     SpriteInventoryIcon: {fileID: 0}
     SpriteLeftHand: {fileID: 11400000, guid: 7b17c79f21e52db47a981330dabb2878, type: 2}
@@ -259,8 +263,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   isMeleeable: 1
-  butcherTime: 2
-  butcherSound: 
 --- !u!114 &6001192430170125611
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -275,6 +277,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   syncMode: 0
   syncInterval: 0.1
+  pickupAnimSpeed: 0.2
 --- !u!114 &6001805373494978133
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -321,6 +324,9 @@ MonoBehaviour:
   syncInterval: 0.1
   matrixDebugLogging: 0
   objectType: 0
+  customNetTransform: {fileID: 0}
+  prefabTracker: {fileID: 0}
+  CurrentsortingGroup: {fileID: 0}
 --- !u!114 &6001070637509285921
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -370,6 +376,7 @@ MonoBehaviour:
     Acid: 0
     Magic: 0
     Bio: 0
+    DismembermentProtectionChance: 0
   Resistances:
     LavaProof: 0
     FireProof: 0
@@ -382,6 +389,7 @@ MonoBehaviour:
   HeatResistance: 100
   ExplosionsDamage: 100
   doDamageMessage: 1
+  CannotBeAshed: 0
 --- !u!114 &6001248824644544481
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -394,26 +402,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9b91ecbcc199f4492b9a91e820070131, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  isDirty: 0
   sceneId: 0
   serverOnly: 0
   visible: 0
-  m_AssetId: 
+  m_AssetId: e7aafe1b61fb34e23a2d4e168a40bfa1
   hasSpawned: 0
---- !u!114 &4736744346245642342
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5970802900729141845}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9a9aeed4ca305164486a90c4ff2231e1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  syncMode: 0
-  syncInterval: 0.1
 --- !u!114 &-3445058822612490815
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -440,3 +433,24 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   syncMode: 0
   syncInterval: 0.1
+--- !u!114 &-5694666669392884321
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5970802900729141845}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8e15827970984ba78808f03bc3f01586, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  syncMode: 0
+  syncInterval: 0.1
+  allClothingData:
+  - {fileID: 11400000, guid: a4b4f2b465887014886854e1a8d66c4c, type: 2}
+  CurrentClothIndex: 0
+  randomInitialClothData: 0
+  hidesIdentity: 0
+  hidesSlots: 0
+  hideClothingFlags: 0

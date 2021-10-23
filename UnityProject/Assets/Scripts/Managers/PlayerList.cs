@@ -147,19 +147,6 @@ public partial class PlayerList : NetworkBehaviour
 		CheckRcon();
 	}
 
-	//filling a struct without connections and gameobjects for client's ClientConnectedPlayers list
-	public List<ClientConnectedPlayer> ClientConnectedPlayerList =>
-		loggedIn.Aggregate(new List<ClientConnectedPlayer>(), (list, player) =>
-		{
-			//not including headless server player
-			if (!GameData.IsHeadlessServer || player.Connection != ConnectedPlayer.Invalid.Connection)
-			{
-				list.Add(new ClientConnectedPlayer {Name = player.Name, Job = player.Job});
-			}
-
-			return list;
-		});
-
 	/// <summary>
 	/// Adds this connected player to the list, or updates an existing entry if there's already one for
 	/// this player's networkconnection. Returns the ConnectedPlayer that was added or updated.
@@ -313,6 +300,27 @@ public partial class PlayerList : NetworkBehaviour
 	}
 
 	/// <summary>
+	/// Get all players with specific state, logged in and logged off
+	/// </summary>
+	[Server]
+	public List<ConnectedPlayer> GetAllByPlayersOfState(PlayerScript.PlayerStates state)
+	{
+		return GetAllPlayers().Where(player => player.Script.PlayerState == state).ToList();
+	}
+
+	/// <summary>
+	/// Get all in game players, logged in and logged off
+	/// </summary>
+	[Server]
+	public List<ConnectedPlayer> GetAllPlayers()
+	{
+		var players = InGamePlayers;
+		players.AddRange(loggedOff.FindAll(player => player.Script != null));
+
+		return players.ToList();
+	}
+
+	/// <summary>
 	/// Check logged in and logged off players
 	/// </summary>
 	/// <param name="condition"></param>
@@ -448,16 +456,32 @@ public partial class PlayerList : NetworkBehaviour
 	}
 
 	[Server]
-	public GameObject TakeLoggedOffPlayerbyClientId(string clientId, string userId)
+	public ConnectedPlayer RemovePlayerbyClientId(string clientId, string userId, ConnectedPlayer newPlayer)
 	{
-		Logger.LogTraceFormat("Searching for logged off players with userId: {0} clientId: {1}", Category.Connections, userId, clientId);
+		Logger.LogTraceFormat("Searching for players with userId: {0} clientId: {1}", Category.Connections, userId, clientId);
 		foreach (var player in loggedOff)
 		{
-			if (player.ClientId == clientId || player.UserId == userId)
+			if ((player.ClientId == clientId || player.UserId == userId) && newPlayer != player)
 			{
-				Logger.LogTraceFormat("Found logged off player with userId {0} clientId: {1}", Category.Connections, player.UserId, player.ClientId);
+				Logger.LogTraceFormat("Found player with userId {0} clientId: {1}", Category.Connections, player.UserId, player.ClientId);
 				loggedOff.Remove(player);
-				return player.GameObject;
+				return player;
+			}
+		}
+		foreach (var player in loggedIn)
+		{
+			if (PlayerManager.LocalViewerScript && PlayerManager.LocalViewerScript.gameObject == player.GameObject ||
+			    PlayerManager.LocalPlayer == player.GameObject)
+			{
+				continue; //server player
+			}
+
+			if ((player.ClientId == clientId || player.UserId == userId) && newPlayer != player)
+			{
+				Logger.LogTraceFormat("Found player with userId {0} clientId: {1}", Category.Connections, player.UserId, player.ClientId);
+				player.Connection.Disconnect(); //new client while online or dc timer not triggering yet
+				loggedIn.Remove(player);
+				return player;
 			}
 		}
 
@@ -546,13 +570,8 @@ public partial class PlayerList : NetworkBehaviour
 public struct ClientConnectedPlayer
 {
 	public string UserName;
-	public string Name;
-	public JobType Job;
-	public bool PendingSpawn;
 	public string Tag;
 
-	public override string ToString()
-	{
-		return $"[{nameof(Name)}='{Name}', {nameof(Job)}={Job}]";
-	}
+	//Used to make this ClientConnectedPlayer unique even if UserName and Tags are the same
+	public int Index;
 }

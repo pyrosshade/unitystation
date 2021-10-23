@@ -1,16 +1,18 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
-using Electricity.Inheritance;
-using Mirror;
-using ScriptableObjects;
 using UnityEngine;
-using Systems.Atmospherics;
-using Doors;
+using Mirror;
 using AddressableReferences;
+using ScriptableObjects;
+using Systems.Interaction;
+using Systems.ObjectConnection;
+using Doors;
+
 
 namespace Objects.Wallmounts
 {
-	public class FireAlarm : SubscriptionController, IServerLifecycle, ICheckedInteractable<HandApply>, ISetMultitoolMaster
+	public class FireAlarm : SubscriptionController, IServerLifecycle, ICheckedInteractable<HandApply>, IMultitoolMasterable, ICheckedInteractable<AiActivate>
 	{
 		public List<FireLock> FireLockList = new List<FireLock>();
 		private MetaDataNode metaNode;
@@ -29,16 +31,7 @@ namespace Objects.Wallmounts
 		public bool hasCables = true;
 
 		[SerializeField]
-		private MultitoolConnectionType conType = MultitoolConnectionType.FireAlarm;
-		public MultitoolConnectionType ConType => conType;
-		[SerializeField] private AddressableAudioSource FireAlarmSFX = null;
-
-		private bool multiMaster = true;
-		public bool MultiMaster => multiMaster;
-
-		public void AddSlave(object SlaveObject)
-		{
-		}
+		private AddressableAudioSource FireAlarmSFX = null;
 
 		public enum FireAlarmState
 		{
@@ -99,6 +92,11 @@ namespace Objects.Wallmounts
 					SendCloseAlerts();
 				}
 			}
+		}
+
+		public void OnDestroy()
+		{
+			UpdateManager.Remove(CallbackType.PERIODIC_UPDATE, UpdateMe);
 		}
 
 		public void OnDespawnServer(DespawnInfo info)
@@ -178,24 +176,29 @@ namespace Objects.Wallmounts
 			}
 			else
 			{
-				if (activated && !isInCooldown)
-				{
-					activated = false;
-					stateSync = FireAlarmState.TopLightSpriteNormal;
-					StartCoroutine(SwitchCoolDown());
-					foreach (var firelock in FireLockList)
-					{
-						if (firelock == null) continue;
-						var controller = firelock.Controller;
-						if (controller == null) continue;
+				InternalToggleState();
+			}
+		}
 
-						controller.TryOpen();
-					}
-				}
-				else
+		private void InternalToggleState()
+		{
+			if (activated && !isInCooldown)
+			{
+				activated = false;
+				stateSync = FireAlarmState.TopLightSpriteNormal;
+				StartCoroutine(SwitchCoolDown());
+				foreach (var firelock in FireLockList)
 				{
-					SendCloseAlerts();
+					if (firelock == null) continue;
+					var controller = firelock.Controller;
+					if (controller == null) continue;
+
+					controller.TryOpen();
 				}
+			}
+			else
+			{
+				SendCloseAlerts();
 			}
 		}
 
@@ -230,23 +233,6 @@ namespace Objects.Wallmounts
 
 		#region Editor
 
-		void OnDrawGizmosSelected()
-		{
-			var sprite = GetComponentInChildren<SpriteRenderer>();
-			if (sprite == null)
-				return;
-
-			//Highlighting all controlled FireLocks
-			Gizmos.color = new Color(1, 0.5f, 0, 1);
-			for (int i = 0; i < FireLockList.Count; i++)
-			{
-				var FireLock = FireLockList[i];
-				if (FireLock == null) continue;
-				Gizmos.DrawLine(sprite.transform.position, FireLock.transform.position);
-				Gizmos.DrawSphere(FireLock.transform.position, 0.25f);
-			}
-		}
-
 		public override IEnumerable<GameObject> SubscribeToController(IEnumerable<GameObject> potentialObjects)
 		{
 			var approvedObjects = new List<GameObject>();
@@ -275,6 +261,32 @@ namespace Objects.Wallmounts
 				fireLock.fireAlarm = this;
 			}
 		}
+
+		#endregion
+
+		#region Ai Interaction
+
+		public bool WillInteract(AiActivate interaction, NetworkSide side)
+		{
+			if (interaction.ClickType != AiActivate.ClickTypes.NormalClick) return false;
+
+			if (DefaultWillInteract.AiActivate(interaction, side) == false) return false;
+
+			return true;
+		}
+
+		public void ServerPerformInteraction(AiActivate interaction)
+		{
+			InternalToggleState();
+		}
+
+		#endregion
+
+		#region Multitool Interaction
+
+		public MultitoolConnectionType ConType => MultitoolConnectionType.FireAlarm;
+		public bool MultiMaster => true;
+		int IMultitoolMasterable.MaxDistance => int.MaxValue;
 
 		#endregion
 	}

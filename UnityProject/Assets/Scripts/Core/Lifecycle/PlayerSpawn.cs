@@ -4,8 +4,10 @@ using UnityEngine;
 using Mirror;
 using Systems;
 using Systems.Spawns;
+using Managers;
 using Messages.Server;
 using Messages.Server.LocalGuiMessages;
+using UI.CharacterCreator;
 
 /// <summary>
 /// Main API for dealing with spawning players and related things.
@@ -57,18 +59,21 @@ public static class PlayerSpawn
 		var isOk = true;
 		var message = "";
 
+		//Disable this until we fix skin tone checks.
+		/*
 		if(ServerValidations.HasIllegalSkinTone(request.CharacterSettings))
 		{
 			message += " Invalid player skin tone.";
 			isOk = false;
 		}
 
+
 		if(ServerValidations.HasIllegalCharacterName(request.CharacterSettings.Name))
 		{
 			message += " Invalid player character name.";
 			isOk = false;
 		}
-
+		*/
 		if(ServerValidations.HasIllegalCharacterAge(request.CharacterSettings.Age))
 		{
 			message += " Invalid character age.";
@@ -203,7 +208,7 @@ public static class PlayerSpawn
 		}
 
 		//create the player object
-		var newPlayer = ServerCreatePlayer(spawnPos.GetValueOrDefault());
+		var newPlayer = ServerCreatePlayer(spawnPos.GetValueOrDefault(), occupation.SpecialPlayerPrefab);
 		var newPlayerScript = newPlayer.GetComponent<PlayerScript>();
 
 		//get the old body if they have one.
@@ -211,7 +216,6 @@ public static class PlayerSpawn
 
 		//transfer control to the player object
 		ServerTransferPlayer(connection, newPlayer, oldBody, Event.PlayerSpawned, characterSettings, willDestroyOldBody);
-
 
 		if (existingMind == null)
 		{
@@ -246,6 +250,11 @@ public static class PlayerSpawn
 				occupation.BackgroundColor,
 				occupation.PlaySound);
 		}
+		if (info.SpawnItems)
+		{
+			newPlayer.GetComponent<DynamicItemStorage>()?.SetUpOccupation(occupation);
+		}
+
 
 		return newPlayer;
 	}
@@ -265,7 +274,7 @@ public static class PlayerSpawn
 		var mind = ps.mind;
 		var occupation = mind.occupation;
 		var settings = ps.characterSettings;
-		ServerTransferPlayer(forConnection, body, fromObject, Event.PlayerRejoined, settings, oldGhost != null);
+		ServerTransferPlayer(forConnection, body, fromObject, Event.PlayerSpawned, settings, oldGhost != null);
 		body.GetComponent<PlayerScript>().playerNetworkActions.ReenterBodyUpdates();
 
 		if (oldGhost)
@@ -333,7 +342,7 @@ public static class PlayerSpawn
 		if (spawnPosition == TransformState.HiddenPos)
 		{
 			//spawn ghost at occupation location if we can't determine where their body is
-			Transform spawnTransform = SpawnPoint.GetRandomPointForJob(forMind.occupation.JobType);
+			Transform spawnTransform = SpawnPoint.GetRandomPointForJob(forMind.occupation.JobType, true);
 			if (spawnTransform == null)
 			{
 				Logger.LogErrorFormat("Unable to determine spawn position for occupation {1}. Cannot spawn ghost.", Category.Ghosts,
@@ -345,14 +354,12 @@ public static class PlayerSpawn
 		}
 
 		var matrixInfo = MatrixManager.AtPoint(spawnPosition, true);
-		var parentNetId = matrixInfo.NetID;
 		var parentTransform = matrixInfo.Objects;
 
 		//using parentTransform.rotation rather than Quaternion.identity because objects should always
 		//be upright w.r.t.  localRotation, NOT world rotation
 		var ghost = UnityEngine.Object.Instantiate(CustomNetworkManager.Instance.ghostPrefab, spawnPosition, parentTransform.rotation,
 			parentTransform);
-		ghost.GetComponent<PlayerScript>().registerTile.ServerSetNetworkedMatrixNetID(parentNetId);
 
 		forMind.Ghosting(ghost);
 
@@ -366,6 +373,8 @@ public static class PlayerSpawn
 
 		if (PlayerList.Instance.IsAdmin(forMind.ghost.connectedPlayer))
 		{
+			var adminItemStorage = AdminManager.Instance.GetItemSlotStorage(forMind.ghost.connectedPlayer);
+			adminItemStorage.ServerAddObserverPlayer(ghost);
 			ghost.GetComponent<GhostSprites>().SetAdminGhost();
 		}
 	}
@@ -380,14 +389,17 @@ public static class PlayerSpawn
 
 		//Get spawn location
 		var matrixInfo = MatrixManager.AtPoint(spawnPosition, true);
-		var parentNetId = matrixInfo.NetID;
 		var parentTransform = matrixInfo.Objects;
 		var newPlayer = UnityEngine.Object.Instantiate(CustomNetworkManager.Instance.ghostPrefab, spawnPosition, parentTransform.rotation, parentTransform);
-		newPlayer.GetComponent<PlayerScript>().registerTile.ServerSetNetworkedMatrixNetID(parentNetId);
 
 		//Create the mind without a job refactor this to make it as a ghost mind
 		Mind.Create(newPlayer);
 		ServerTransferPlayer(joinedViewer.connectionToClient, newPlayer, null, Event.GhostSpawned, characterSettings);
+
+		if (PlayerList.Instance.IsAdmin(PlayerList.Instance.Get(joinedViewer.connectionToClient)))
+		{
+			newPlayer.GetComponent<GhostSprites>().SetAdminGhost();
+		}
 	}
 
 	/// <summary>
@@ -401,11 +413,13 @@ public static class PlayerSpawn
 		{
 			var dummy = ServerCreatePlayer(spawnTransform.position.RoundToInt());
 
-			ServerTransferPlayer(null, dummy, null, Event.PlayerSpawned, new CharacterSettings());
+			CharacterSettings randomSettings = CharacterSettings.RandomizeCharacterSettings();
+
+			ServerTransferPlayer(null, dummy, null, Event.PlayerSpawned, randomSettings);
 
 
 			//fire all hooks
-			var info = SpawnInfo.Player(OccupationList.Instance.Get(JobType.ASSISTANT), new CharacterSettings(), CustomNetworkManager.Instance.humanPlayerPrefab,
+			var info = SpawnInfo.Player(OccupationList.Instance.Get(JobType.ASSISTANT), randomSettings, CustomNetworkManager.Instance.humanPlayerPrefab,
 				SpawnDestination.At(spawnTransform.gameObject));
 			Spawn._ServerFireClientServerSpawnHooks(SpawnResult.Single(info, dummy));
 		}
@@ -419,23 +433,24 @@ public static class PlayerSpawn
 	/// <param name="spawnWorldPosition">world pos to spawn at</param>
 	/// <param name="occupation">occupation to spawn as</param>
 	/// <param name="characterSettings">settings to use for the character</param>
+	/// <param name="playerPrefab">prefab to spawn for the player</param>
 	/// <returns></returns>
-	private static GameObject ServerCreatePlayer(Vector3Int spawnWorldPosition)
+	private static GameObject ServerCreatePlayer(Vector3Int spawnWorldPosition, GameObject playerPrefab = null)
 	{
 		//player is only spawned on server, we don't sync it to other players yet
 		var spawnPosition = spawnWorldPosition;
 		var matrixInfo = MatrixManager.AtPoint(spawnPosition, true);
-		var parentNetId = matrixInfo.NetID;
 		var parentTransform = matrixInfo.Objects;
+
+		if (playerPrefab == null)
+		{
+			playerPrefab = CustomNetworkManager.Instance.humanPlayerPrefab;
+		}
 
 		//using parentTransform.rotation rather than Quaternion.identity because objects should always
 		//be upright w.r.t.  localRotation, NOT world rotation
-		var player = UnityEngine.Object.Instantiate(CustomNetworkManager.Instance.humanPlayerPrefab,
-			spawnPosition, parentTransform.rotation,
+		var player = UnityEngine.Object.Instantiate(playerPrefab, spawnPosition, parentTransform.rotation,
 			parentTransform);
-		player.GetComponent<PlayerScript>().registerTile.ServerSetNetworkedMatrixNetID(parentNetId);
-
-
 
 		return player;
 	}
@@ -468,7 +483,13 @@ public static class PlayerSpawn
 			}
 
 			//no longer can observe their inventory
-			oldBody.GetComponent<ItemStorage>()?.ServerRemoveObserverPlayer(oldBody);
+			oldBody.GetComponent<DynamicItemStorage>()?.ServerRemoveObserverPlayer(oldBody);
+		}
+
+		var netIdentity = newBody.GetComponent<NetworkIdentity>();
+		if (netIdentity.connectionToClient != null)
+		{
+			CustomNetworkManager.Instance.OnServerDisconnect(netIdentity.connectionToClient);
 		}
 
 		var connectedPlayer = PlayerList.Instance.Get(conn);
@@ -492,13 +513,13 @@ public static class PlayerSpawn
 			TriggerEventMessage.SendTo(newBody, eventType);
 
 			//can observe their new inventory
-			newBody.GetComponent<ItemStorage>()?.ServerAddObserverPlayer(newBody);
-		}
+			var dynamicItemStorage = newBody.GetComponent<DynamicItemStorage>();
+			if (dynamicItemStorage != null)
+			{
+				dynamicItemStorage.ServerAddObserverPlayer(newBody);
+				PlayerPopulateInventoryUIMessage.Send(dynamicItemStorage, newBody);
+			}
 
-		var playerScript = newBody.GetComponent<PlayerScript>();
-		if (playerScript.PlayerSync != null)
-		{
-			playerScript.PlayerSync.NotifyPlayers(true);
 		}
 
 		// If the player is inside a container, send a ClosetHandlerMessage.
@@ -511,8 +532,9 @@ public static class PlayerSpawn
 
 		if (characterSettings != null)
 		{
+			var playerScript = newBody.GetComponent<PlayerScript>();
 			playerScript.characterSettings = characterSettings;
-			playerScript.playerName = characterSettings.Name;
+			playerScript.playerName = playerScript.PlayerState != PlayerScript.PlayerStates.Ai ? characterSettings.Name : characterSettings.AiName;
 			newBody.name = characterSettings.Name;
 			var playerSprites = newBody.GetComponent<PlayerSprites>();
 			if (playerSprites)
@@ -520,29 +542,5 @@ public static class PlayerSpawn
 				playerSprites.OnCharacterSettingsChange(characterSettings);
 			}
 		}
-		var healthStateMonitor = newBody.GetComponent<HealthStateMonitor>();
-		if (healthStateMonitor)
-		{
-			healthStateMonitor.ProcessClientUpdateRequest(newBody);
-		}
-	}
-
-	private static StepType GetStepType(PlayerScript player)
-	{
-		// if (player == null || player.Equipment == null)
-		// {
-		// 	return StepType.Barefoot;
-		// }
-		//
-		// if (player.Equipment.GetClothingItem(NamedSlot.outerwear)?.gameObject.GetComponent<StepChanger>() != null)
-		// {
-		// 	return StepType.Suit;
-		// }
-		// else if (player.Equipment.GetClothingItem(NamedSlot.feet) != null)
-		// {
-		// 	return StepType.Shoes;
-		// }
-
-		return StepType.Barefoot;
 	}
 }

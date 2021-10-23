@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using HealthV2;
 using Items;
+using Items.Others;
 using Messages.Client.Interaction;
 using UnityEngine;
 using UnityEngine.Events;
@@ -49,7 +50,6 @@ namespace Chemistry.Components
 		private bool destroyOnEmpty = default;
 
 		private ItemAttributesV2 itemAttributes = default;
-		private RegisterTile registerTile;
 		private CustomNetTransform customNetTransform;
 		private Integrity integrity;
 
@@ -130,8 +130,6 @@ namespace Chemistry.Components
 
 		private void Awake()
 		{
-			registerTile = GetComponent<RegisterTile>();
-
 			// register spill on throw
 			customNetTransform = GetComponent<CustomNetTransform>();
 			if (customNetTransform)
@@ -195,13 +193,16 @@ namespace Chemistry.Components
 			// check whitelist reagents
 			if (ReagentWhitelistOn)
 			{
-				if (!addition.reagents.m_dict.All(r => reagentWhitelist.Contains(r.Key)))
+				lock (addition.reagents)
 				{
-					return new TransferResult
+					if (!addition.reagents.m_dict.All(r => reagentWhitelist.Contains(r.Key)))
 					{
-						Success = false,
-						Message = "You can't transfer this into " + FancyContainerName
-					};
+						return new TransferResult
+						{
+							Success = false,
+							Message = "You can't transfer this into " + FancyContainerName
+						};
+					}
 				}
 			}
 
@@ -262,6 +263,19 @@ namespace Chemistry.Components
 		}
 
 		/// <summary>
+		/// Server side only. Subtract the specified reagent from the container.
+		/// </summary>
+		/// <param name="reagent"></param>
+		/// <returns>Substracted amount</returns>
+		public float Subtract(Reagent reagent, float subAmount)
+		{
+			float result = CurrentReagentMix.Subtract(reagent, subAmount);
+			OnReagentMixChanged?.Invoke();
+			ReagentsChanged();
+			return result;
+		}
+
+		/// <summary>
 		/// Server side only. Extracts reagents to be used outside ReagentContainer
 		/// </summary>
 		public ReagentMix TakeReagents(float amount)
@@ -288,7 +302,7 @@ namespace Chemistry.Components
 		/// </summary>
 		public void Divide(float Divider)
 		{
-			CurrentReagentMix.Multiply(Divider);
+			CurrentReagentMix.Divide(Divider);
 			OnReagentMixChanged?.Invoke();
 		}
 
@@ -339,14 +353,18 @@ namespace Chemistry.Components
 		#region Spill
 		private void SpillAll(bool thrown = false)
 		{
-			if (!IsEmpty)
+			try
 			{
-				if (registerTile && registerTile.CustomTransform)
+				if (!IsEmpty)
 				{
-					var worldPos = registerTile.CustomTransform.AssumedWorldPositionServer();
+					var worldPos = customNetTransform.PushPull.AssumedWorldPositionServer();
 					worldPos.z = 0;
 					SpillAll(worldPos, thrown);
 				}
+			}
+			catch (NullReferenceException exception)
+			{
+				Logger.LogError("Caught NRE in ReagentContainer SpillAll method: " + exception.Message, Category.Chemistry);
 			}
 		}
 
@@ -412,7 +430,6 @@ namespace Chemistry.Components
 			{
 				result.AddElement("PourOut", OnPourOutClicked);
 			}
-
 			return result;
 		}
 
@@ -435,38 +452,38 @@ namespace Chemistry.Components
 
 		public void ServerPerformInteraction(ContextMenuApply interaction)
 		{
+			var eyeItem = interaction.Performer.GetComponent<Equipment>().GetClothingItem(NamedSlot.eyes).GameObjectReference;
 			switch (interaction.RequestedOption)
 			{
 				case "Contents":
-					// I think some condition should be met before the user knows what the exact contents of a container are.
-					// Wearing science goggles?
-					ExamineContents();
-					break;
+					{
+
+						if (Validations.HasItemTrait(eyeItem, CommonTraits.Instance.ScienceScan))
+						{
+							eyeItem.GetComponent<ReagentScanner>().DoScan(interaction.Performer.gameObject, this.gameObject);
+						}
+						else
+						{
+							ExamineContents(interaction);
+						}
+						break;
+					}
 				case "PourOut":
 					SpillAll();
 					break;
 			}
 		}
 
-		private void ExamineContents()
+		private void ExamineContents(ContextMenuApply interaction)
 		{
 			if (IsEmpty)
 			{
-				Chat.AddExamineMsgToClient($"The {gameObject.ExpensiveName()} is empty.");
+				Chat.AddExamineMsgFromServer(interaction.Performer, $"The {gameObject.ExpensiveName()} is empty.");
 				return;
-			}
-			//We cant use the container game object to manage this, do it ourselves.
-			if(this.ExamineAmount == ExamineAmountMode.UNKNOWN_AMOUNT)
-			{
-				//TODO: Cleanup the logic between looking at things in containters and things with no container/item attributes
-				Chat.AddExamineMsgToClient(this.Examine());
 			}
 			else
 			{
-				foreach (var reagent in CurrentReagentMix.reagents.m_dict)
-				{
-					Chat.AddExamineMsgToClient($"The {gameObject.ExpensiveName()} contains {reagent.Value} {reagent.Key}.");
-				}
+				Chat.AddExamineMsgFromServer(interaction.Performer, this.Examine());
 			}
 		}
 

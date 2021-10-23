@@ -1,6 +1,8 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
+using Core.Editor.Attributes;
 using Items;
+
 
 namespace Systems.Interaction
 {
@@ -10,7 +12,7 @@ namespace Systems.Interaction
 	/// </summary>
 	public class Meleeable : MonoBehaviour, IPredictedCheckedInteractable<PositionalHandApply>
 	{
-		[SerializeField]
+		[SerializeField, PrefabModeOnly]
 		private bool isMeleeable = true;
 		// If it has this component, isn't it assumed to be meleeable? Is this still true for tilemaps?
 		public bool IsMeleeable
@@ -53,9 +55,13 @@ namespace Systems.Interaction
 			// note: actual cooldown is started in WeaponNetworkActions melee logic on server side,
 			// clientPredictInteraction on clientside
 			if (side == NetworkSide.Client && Cooldowns.IsOn(interaction, CooldownID.Asset(CommonCooldowns.Instance.Melee, side))) return false;
-
+			
+			bool LocalItemCheck()
+			{
+				return interaction.HandObject.OrNull()?.Item().CanBeUsedOnSelfOnHelpIntent ?? false;
+			}
 			// not punching unless harm intent
-			if (interaction.HandObject == null && interaction.Intent != Intent.Harm) return false;
+			if (interaction.Intent != Intent.Harm && !LocalItemCheck()) return false;
 
 			// if attacking tiles, only some layers are allowed to be attacked
 			if (interactableTiles != null)

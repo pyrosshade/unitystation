@@ -1,8 +1,8 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
-namespace Pipes
+
+namespace Items.Atmospherics
 {
 	public class DebugAtmosphericAnalyser : MonoBehaviour, ICheckedInteractable<PositionalHandApply>
 	{
@@ -26,6 +26,7 @@ namespace Pipes
 			}
 
 			Chat.AddExamineMsgFromServer(interaction.Performer, toShow);
+			Logger.Log(toShow);
 		}
 	}
 }

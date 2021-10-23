@@ -7,6 +7,7 @@ using DatabaseAPI;
 using Systems.MobAIs;
 using System.Text;
 using System.Text.RegularExpressions;
+using Systems.Ai;
 using Core.Chat;
 using Items;
 using Messages.Server;
@@ -82,12 +83,25 @@ public partial class Chat : MonoBehaviour
 	/// Send a Chat Msg from a player to the selected Chat Channels
 	/// Server only
 	/// </summary>
-	public static void AddChatMsgToChat(ConnectedPlayer sentByPlayer, string message, ChatChannel channels)
+	public static void AddChatMsgToChat(ConnectedPlayer sentByPlayer, string message, ChatChannel channels, Loudness loudness = Loudness.NORMAL)
 	{
 		message = AutoMod.ProcessChatServer(sentByPlayer, message);
 		if (string.IsNullOrWhiteSpace(message)) return;
 
 		var player = sentByPlayer.Script;
+
+		//Check to see whether this player is allowed to send on the chosen channels
+		if (player != null)
+		{
+			channels &= player.GetAvailableChannelsMask(true);
+		}
+		else
+		{
+			//If player is null, must be in lobby therefore lock to OOC
+			channels = ChatChannel.OOC;
+		}
+
+		if (channels == ChatChannel.None) return;
 
 		// The exact words that leave the player's mouth (or that are narrated). Already includes HONKs, stutters, etc.
 		// This step is skipped when speaking in the OOC channel.
@@ -96,17 +110,27 @@ public partial class Chat : MonoBehaviour
 		if (!isOOC)
 		{
 			processedMessage = ProcessMessage(sentByPlayer, message);
+
+			if (string.IsNullOrWhiteSpace(processedMessage.message)) return;
 		}
 
 		var chatEvent = new ChatEvent
 		{
 			message = isOOC ? message : processedMessage.message,
 			modifiers = (player == null) ? ChatModifier.None : processedMessage.chatModifiers,
-			speaker = (player == null) ? sentByPlayer.Username : player.name,
-			position = (player == null) ? TransformState.HiddenPos : player.gameObject.AssumedWorldPosServer(),
+			speaker = (player == null) ? sentByPlayer.Username : player.playerName,
+			position = (player == null) ? TransformState.HiddenPos : player.PlayerChatLocation.AssumedWorldPosServer(),
 			channels = channels,
-			originator = sentByPlayer.GameObject
+			originator = (player == null) ? sentByPlayer.GameObject : player.PlayerChatLocation,
+			VoiceLevel = loudness
 		};
+
+		//This is to make sure OOC doesn't break
+		if (sentByPlayer.Job != JobType.NULL)
+		{
+			CheckVoiceLevel(sentByPlayer.Script, chatEvent.channels);
+		}
+
 
 		if (channels.HasFlag(ChatChannel.OOC))
 		{
@@ -171,33 +195,73 @@ public partial class Chat : MonoBehaviour
 
 		// TODO the following code uses player.playerHealth, but ConciousState would be more appropriate.
 		// Check if the player is allowed to talk:
-		if (player != null && player.playerHealth != null)
+		if (player != null)
 		{
-			if (!player.IsDeadOrGhost && player.mind.IsMiming && !processedMessage.chatModifiers.HasFlag(ChatModifier.Emote))
+			if (player.playerHealth != null)
 			{
-				AddWarningMsgFromServer(sentByPlayer.GameObject, "You can't talk because you made a vow of silence.");
-				return;
-			}
-
-			if (player.playerHealth.IsCrit)
-			{
-				if (!player.playerHealth.IsDead)
+				if (!player.IsDeadOrGhost && player.mind.IsMiming && !processedMessage.chatModifiers.HasFlag(ChatModifier.Emote))
 				{
+					AddWarningMsgFromServer(sentByPlayer.GameObject, "You can't talk because you made a vow of silence.");
 					return;
 				}
-				else
+
+				if (player.playerHealth.IsCrit)
 				{
-					chatEvent.channels = ChatChannel.Ghost;
+					if (!player.playerHealth.IsDead)
+					{
+						return;
+					}
+					else
+					{
+						chatEvent.channels = ChatChannel.Ghost;
+					}
 				}
-			}
-			else if (!player.playerHealth.IsDead && !player.IsGhost)
-			{
-				//Control the chat bubble
-				player.playerNetworkActions.CmdToggleChatIcon(true, processedMessage.message, channels, processedMessage.chatModifiers);
+				else if (!player.playerHealth.IsDead && !player.IsGhost)
+				{
+					//Control the chat bubble
+					player.playerNetworkActions.ServerToggleChatIcon(true, processedMessage.message, channels, processedMessage.chatModifiers);
+				}
 			}
 		}
 
 		InvokeChatEvent(chatEvent);
+	}
+
+	private static Loudness CheckVoiceLevel(PlayerScript script, ChatChannel channels)
+	{
+		//Check if is not a ghost/spectator and the player has an inventory.
+		if (script.IsDeadOrGhost || script.DynamicItemStorage == null)
+		{
+			return Loudness.NORMAL;
+		}
+
+		foreach (ItemSlot slot in script.DynamicItemStorage.GetNamedItemSlots(NamedSlot.ear))
+		{
+			Headset headset = slot.Item?.gameObject.GetComponent<Headset>();
+			if (headset == null) continue;
+
+			//TODO this sets the voice level by the first headset found, if multiple should we choose loudest instead?
+			if (headset.LoudSpeakOn && IsOnCorrectChannels(channels))
+			{
+				return headset.LoudspeakLevel;
+			}
+		}
+
+		return Loudness.NORMAL;
+	}
+
+	private static bool IsOnCorrectChannels(ChatChannel channels)
+	{
+		if (channels.HasFlag(ChatChannel.Common) ||
+		    channels.HasFlag(ChatChannel.Command) || channels.HasFlag(ChatChannel.Security)
+		    || channels.HasFlag(ChatChannel.Engineering) || channels.HasFlag(ChatChannel.Medical)
+		    || channels.HasFlag(ChatChannel.Science)
+		    || channels.HasFlag(ChatChannel.Syndicate) || channels.HasFlag(ChatChannel.Supply))
+		{
+			return true;
+		}
+
+		return false;
 	}
 
 	/// <summary>
@@ -208,8 +272,9 @@ public partial class Chat : MonoBehaviour
 	/// <param name="channels">The channels to broadcast on.</param>
 	/// <param name="chatModifiers">Chat modifiers to use e.g. ChatModifier.ColdlyState.</param>
 	/// <param name="broadcasterName">Optional name for the broadcaster. Pulls name from GameObject if not used.</param>
+	/// <param name="voiceLevel">How loud is this message?</param>
 	public static void AddCommMsgByMachineToChat(
-			GameObject sentByMachine, string message, ChatChannel channels,
+			GameObject sentByMachine, string message, ChatChannel channels, Loudness voiceLevel,
 			ChatModifier chatModifiers = ChatModifier.None, string broadcasterName = default)
 	{
 		if (string.IsNullOrWhiteSpace(message)) return;
@@ -221,7 +286,8 @@ public partial class Chat : MonoBehaviour
 			speaker = broadcasterName != default ? broadcasterName : sentByMachine.ExpensiveName(),
 			position = sentByMachine.WorldPosServer(),
 			channels = channels,
-			originator = sentByMachine
+			originator = sentByMachine,
+			VoiceLevel = voiceLevel
 		};
 
 		InvokeChatEvent(chatEvent);
@@ -527,7 +593,7 @@ public partial class Chat : MonoBehaviour
 	public static void AddExamineMsgFromServer(GameObject recipient, string msg)
 	{
 		if (!IsServer()) return;
-		UpdateChatMessage.Send(recipient, ChatChannel.Examine, ChatModifier.None, msg);
+		UpdateChatMessage.Send(recipient, ChatChannel.Examine, ChatModifier.None, msg, Loudness.NORMAL);
 	}
 
 	/// <inheritdoc cref="AddExamineMsgFromServer(GameObject, string)"/>
@@ -549,7 +615,7 @@ public partial class Chat : MonoBehaviour
 	/// <param name="message"> The message to add to the client chat stream</param>
 	public static void AddExamineMsgToClient(string message)
 	{
-		ChatRelay.Instance.UpdateClientChat(message, ChatChannel.Examine, true, PlayerManager.LocalPlayer);
+		ChatRelay.Instance.UpdateClientChat(message, ChatChannel.Examine, true, PlayerManager.LocalPlayer, Loudness.NORMAL);
 	}
 
 	/// <summary>
@@ -584,8 +650,8 @@ public partial class Chat : MonoBehaviour
 
 	public static void AddWarningMsgToClient(string message)
 	{
-		message = ProcessMessageFurther(message, "", ChatChannel.Warning, ChatModifier.None); //TODO: Put processing in a unified place for server and client.
-		ChatRelay.Instance.UpdateClientChat(message, ChatChannel.Warning, true, PlayerManager.LocalPlayer);
+		message = ProcessMessageFurther(message, "", ChatChannel.Warning, ChatModifier.None, Loudness.NORMAL); //TODO: Put processing in a unified place for server and client.
+		ChatRelay.Instance.UpdateClientChat(message, ChatChannel.Warning, true, PlayerManager.LocalPlayer, Loudness.NORMAL);
 	}
 
 	public static void AddAdminPrivMsg(string message)

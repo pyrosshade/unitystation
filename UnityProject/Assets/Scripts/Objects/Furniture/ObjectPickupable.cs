@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Player.Movement;
 using UnityEngine;
 
 namespace Objects
@@ -40,7 +41,7 @@ namespace Objects
 		{
 			var folded = Spawn.ServerPrefab(prefabVariant).GameObject;
 			Inventory.ServerAdd(folded,
-				interaction.Performer.GetComponent<ItemStorage>().GetActiveHandSlot());
+				interaction.Performer.GetComponent<DynamicItemStorage>().GetActiveHandSlot());
 			// Remove from world
 			_ = Despawn.ServerSingle(gameObject);
 		}

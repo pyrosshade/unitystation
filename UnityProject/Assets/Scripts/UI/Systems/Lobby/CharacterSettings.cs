@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using UI.CharacterCreator;
+using UnityEngine;
 
 /// <summary>
 /// Class containing all character preferences for a player
@@ -18,6 +19,7 @@ public class CharacterSettings
 	public const int MAX_NAME_LENGTH = 26; // Arbitrary limit, but 26 is the max the current UI can fit
 	public string Username;
 	public string Name = "Cuban Pete";
+	public string AiName = "R.O.B.O.T.";
 	public BodyType BodyType = BodyType.Male;
 	public ClothingStyle ClothingStyle = ClothingStyle.JumpSuit;
 	public BagStyle BagStyle = BagStyle.Backpack;
@@ -43,6 +45,7 @@ public class CharacterSettings
 	{
 		var sb = new StringBuilder($"{Username}'s character settings:\n", 300);
 		sb.AppendLine($"Name: {Name}");
+		sb.AppendLine($"AiName: {AiName}");
 		sb.AppendLine($"ClothingStyle: {ClothingStyle}");
 		sb.AppendLine($"BagStyle: {BagStyle}");
 		sb.AppendLine($"Pronouns: {PlayerPronoun}");
@@ -61,6 +64,7 @@ public class CharacterSettings
 	public void ValidateSettings()
 	{
 		ValidateName();
+		ValidateAiName();
 		ValidateJobPreferences();
 	}
 
@@ -76,6 +80,23 @@ public class CharacterSettings
 		}
 
 		if (Name.Length > MAX_NAME_LENGTH)
+		{
+			throw new InvalidOperationException("Name cannot exceed " + MAX_NAME_LENGTH + " characters");
+		}
+	}
+
+	/// <summary>
+	/// Checks if the character Ai name follows all rules
+	/// </summary>
+	/// <exception cref="InvalidOperationException">If the name not valid</exception>
+	private void ValidateAiName()
+	{
+		if (String.IsNullOrWhiteSpace(AiName))
+		{
+			AiName = "R.O.B.O.T.";
+		}
+
+		if (AiName.Length > MAX_NAME_LENGTH)
 		{
 			throw new InvalidOperationException("Name cannot exceed " + MAX_NAME_LENGTH + " characters");
 		}
@@ -157,7 +178,7 @@ public class CharacterSettings
 	/// Returns an object pronoun string (i.e. "he's", "she's", "they're") for the provided gender enum.
 	/// </summary>
 	public string TheyrePronoun(PlayerScript script)
-	{	
+	{
 		if (script.Equipment.GetPlayerNameByEquipment() == "Unknown" && script.Equipment.IsIdentityObscured())
 		{
 			return "they're";
@@ -177,7 +198,7 @@ public class CharacterSettings
 	/// Returns an object pronoun string (i.e. "himself", "herself", "themself") for the provided gender enum.
 	/// </summary>
 	public string ThemselfPronoun(PlayerScript script)
-	{	
+	{
 		if (script.Equipment.GetPlayerNameByEquipment() == "Unknown" && script.Equipment.IsIdentityObscured())
 		{
 			return "themself";
@@ -226,4 +247,117 @@ public class CharacterSettings
 				return "have";
 		}
 	}
+
+	#region StaticCustomizationFunctions
+
+	public static CharacterSettings RandomizeCharacterSettings()
+	{
+		CharacterSettings random = new CharacterSettings();
+		// Randomise gender
+		Type gender = typeof(BodyType);
+		Array genders = gender.GetEnumValues();
+		int index = UnityEngine.Random.Range(0,3);
+		random.BodyType = (BodyType)genders.GetValue(index);
+
+		//Randomises player name and age and skin tone.
+		random.Name = RandomizeCharacterName(random);
+		random.Age  = UnityEngine.Random.Range(19, 78);
+		random.SkinTone = RandomizeCharacterSkinToneHtmlString(random);
+		random.SerialisedExternalCustom = GetRandomUnderwearCustomisation(random);
+
+		//Randomises player accents. (Italian, Scottish, etc)
+		random.Speech = RandomizeCharachterAccent();
+
+		return random;
+	}
+
+	public static List<ExternalCustomisation> GetRandomUnderwearCustomisation(CharacterSettings data)
+	{
+		var RaceData = GetRaceData(data);
+		List<ExternalCustomisation> externalCustomisations = new List<ExternalCustomisation>();
+
+		void Logic(CustomisationAllowedSetting setting)
+		{
+			PlayerCustomisationData customizationToAdd = setting.CustomisationGroup.PlayerCustomisations.PickRandom();
+			ExternalCustomisation newExternalCustomisation = new ExternalCustomisation();
+			newExternalCustomisation.Key = customizationToAdd.name;
+			newExternalCustomisation.SerialisedValue = SerialiseCustomizationData(customizationToAdd);
+			externalCustomisations.Add(newExternalCustomisation);
+		}
+
+		foreach (CustomisationAllowedSetting customisation in RaceData.Base.CustomisationSettings)
+		{
+			if (customisation.CustomisationGroup.name == "PlayerUnderShirt") Logic(customisation);
+			if (customisation.CustomisationGroup.name == "PlayerUnderWear")  Logic(customisation);
+			if (customisation.CustomisationGroup.name == "PlayerSocks")      Logic(customisation);
+		}
+
+		return externalCustomisations;
+	}
+
+	public static CustomisationClass SerialiseCustomizationData(PlayerCustomisationData data)
+	{
+		var newcurrentSetting = new CustomisationClass();
+		newcurrentSetting.Colour = "#" + ColorUtility.ToHtmlStringRGB(new Color(UnityEngine.Random.Range(0.1f, 1f),
+			UnityEngine.Random.Range(0.1f, 1f), UnityEngine.Random.Range(0.1f, 1f), 1f));
+		newcurrentSetting.SelectedName = data.Name;
+		return newcurrentSetting;
+	}
+
+	public static string RandomizeCharacterSkinToneHtmlString(CharacterSettings data)
+	{
+		var RaceData = GetRaceData(data);
+
+		List<Color> raceSkinColors = RaceData.Base.SkinColours;
+		if (raceSkinColors.Count != 0)
+		{
+			return "#" +
+			       ColorUtility.ToHtmlStringRGB(raceSkinColors[UnityEngine.Random.Range(0, raceSkinColors.Count - 1)]);
+		}
+
+		return "#" + ColorUtility.ToHtmlStringRGBA(new Color(UnityEngine.Random.Range(0.1f, 1f),
+			UnityEngine.Random.Range(0.1f, 1f),
+			UnityEngine.Random.Range(0.1f, 1f), 1f));
+	}
+
+	public static string RandomizeCharacterName(CharacterSettings data, bool isNotPlayerDebug = true)
+	{
+		switch (data.BodyType)
+		{
+			case BodyType.Male:
+				return StringManager.GetRandomMaleName();
+			case BodyType.Female:
+				return StringManager.GetRandomFemaleName();
+			default:
+				if (isNotPlayerDebug) return StringManager.GetRandomName(Gender.NonBinary);
+				else return "Cuban Pete";
+		}
+	}
+
+	public static PlayerHealthData GetRaceData(CharacterSettings data)
+	{
+		foreach (var Race in RaceSOSingleton.Instance.Races)
+		{
+			if (Race.name == data.Species) return Race;
+		}
+
+		Logger.LogError($"Unable to get PlayerHealthData from {data.Name} / {data.Username}");
+		return new PlayerHealthData();
+	}
+
+	public static Speech RandomizeCharachterAccent()
+	{
+		int accentChance = UnityEngine.Random.Range(0, 100);
+		if (accentChance <= 35)
+		{
+			Type accent = typeof(Speech);
+			Array accents = accent.GetEnumValues();
+			int index = UnityEngine.Random.Range(0, 7);
+			return (Speech) accents.GetValue(index);
+		}
+
+		return Speech.None;
+	}
+
+	#endregion
 }

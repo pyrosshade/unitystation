@@ -43,6 +43,7 @@ SpriteRenderer:
   m_CastShadows: 0
   m_ReceiveShadows: 0
   m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
   m_MotionVectors: 1
   m_LightProbeUsage: 1
   m_ReflectionProbeUsage: 1
@@ -103,12 +104,12 @@ MonoBehaviour:
   - {fileID: 11400000, guid: da6382ff06977d74ab7be8a1b19f65bb, type: 2}
   - {fileID: 11400000, guid: ef6303a1b3b0ec4489e8f87ef315efd5, type: 2}
   - {fileID: 11400000, guid: bc54afa99f62d904c99dbc6717cebd88, type: 2}
+  - {fileID: 11400000, guid: f198981ae0bd7c64d8071596aee94a88, type: 2}
   PresentSpriteSet: {fileID: 11400000, guid: 7d2de9c440cedfa4a855277fac47f8d0, type: 2}
   randomInitialSprite: 0
   pushTextureOnStartUp: 1
-  variantIndex: 0
+  initialVariantIndex: 0
   palette: []
-  Sprites: []
 --- !u!1 &404576362407937357
 GameObject:
   m_ObjectHideFlags: 0
@@ -158,6 +159,7 @@ SpriteRenderer:
   m_CastShadows: 0
   m_ReceiveShadows: 0
   m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
   m_MotionVectors: 1
   m_LightProbeUsage: 1
   m_ReflectionProbeUsage: 1
@@ -220,9 +222,8 @@ MonoBehaviour:
   PresentSpriteSet: {fileID: 11400000, guid: 7d2de9c440cedfa4a855277fac47f8d0, type: 2}
   randomInitialSprite: 0
   pushTextureOnStartUp: 1
-  variantIndex: 0
+  initialVariantIndex: 0
   palette: []
-  Sprites: []
 --- !u!114 &7418526098909645323
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -278,6 +279,7 @@ SpriteRenderer:
   m_CastShadows: 0
   m_ReceiveShadows: 0
   m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
   m_MotionVectors: 1
   m_LightProbeUsage: 1
   m_ReflectionProbeUsage: 1
@@ -339,9 +341,8 @@ MonoBehaviour:
   PresentSpriteSet: {fileID: 11400000, guid: 83e7069aacdb7864587c92e14b75f560, type: 2}
   randomInitialSprite: 0
   pushTextureOnStartUp: 1
-  variantIndex: 0
+  initialVariantIndex: 0
   palette: []
-  Sprites: []
 --- !u!1 &512806237205393311
 GameObject:
   m_ObjectHideFlags: 0
@@ -385,6 +386,7 @@ SpriteRenderer:
   m_CastShadows: 0
   m_ReceiveShadows: 0
   m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
   m_MotionVectors: 1
   m_LightProbeUsage: 1
   m_ReflectionProbeUsage: 1
@@ -447,9 +449,8 @@ MonoBehaviour:
   PresentSpriteSet: {fileID: 11400000, guid: 7d2de9c440cedfa4a855277fac47f8d0, type: 2}
   randomInitialSprite: 0
   pushTextureOnStartUp: 1
-  variantIndex: 0
+  initialVariantIndex: 0
   palette: []
-  Sprites: []
 --- !u!1 &773641709186510069
 GameObject:
   m_ObjectHideFlags: 0
@@ -493,6 +494,7 @@ SpriteRenderer:
   m_CastShadows: 0
   m_ReceiveShadows: 0
   m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
   m_MotionVectors: 1
   m_LightProbeUsage: 1
   m_ReflectionProbeUsage: 1
@@ -552,9 +554,8 @@ MonoBehaviour:
   PresentSpriteSet: {fileID: 11400000, guid: 7d2de9c440cedfa4a855277fac47f8d0, type: 2}
   randomInitialSprite: 0
   pushTextureOnStartUp: 1
-  variantIndex: 0
+  initialVariantIndex: 0
   palette: []
-  Sprites: []
 --- !u!1 &2233065044779290990
 GameObject:
   m_ObjectHideFlags: 0
@@ -604,6 +605,7 @@ SpriteRenderer:
   m_CastShadows: 0
   m_ReceiveShadows: 0
   m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
   m_MotionVectors: 1
   m_LightProbeUsage: 1
   m_ReflectionProbeUsage: 1
@@ -665,9 +667,8 @@ MonoBehaviour:
   PresentSpriteSet: {fileID: 11400000, guid: 7d2de9c440cedfa4a855277fac47f8d0, type: 2}
   randomInitialSprite: 0
   pushTextureOnStartUp: 1
-  variantIndex: 0
+  initialVariantIndex: 0
   palette: []
-  Sprites: []
 --- !u!114 &5292488675851686727
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -695,6 +696,8 @@ GameObject:
   - component: {fileID: 2928157364170990969}
   - component: {fileID: 3801622674961811191}
   - component: {fileID: 6636148725921946958}
+  - component: {fileID: 5426044163123208281}
+  - component: {fileID: 1041634214839098044}
   m_Layer: 18
   m_Name: modules
   m_TagString: Untagged
@@ -801,7 +804,62 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 721556b81b487084782d2d54ec862919, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  IDToggleCard: {fileID: 11400000, guid: cf3b09017623921439e0c774d656f53f, type: 2}
   needsClosedToLight: 1
+  boltsUpSound:
+    SetLoadSetting: 0
+    AssetAddress: Assets/Prefabs/Doors/AirlockBoltUp.prefab
+    AssetReference:
+      m_AssetGUID: 
+      m_SubObjectName: 
+      m_SubObjectType: 
+  boltsDownSound:
+    SetLoadSetting: 0
+    AssetAddress: Assets/Prefabs/Doors/AirlockBoltDown.prefab
+    AssetReference:
+      m_AssetGUID: 
+      m_SubObjectName: 
+      m_SubObjectType: 
+--- !u!114 &5426044163123208281
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3444326074182531729}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4adbb1cdeaa4e8eaf04bfb634d4735b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  voltageDamage: 9080
+  isElectrecuted: 0
+--- !u!114 &1041634214839098044
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3444326074182531729}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3ef2e1fdce213d948989eb4b5d19a5d0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &-2169664583946153626
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8248341723222571775}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6d7277dcc993463cb6c7f79b663f36fc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  NetTabType: 42
+  aiInteractable: 1
 --- !u!114 &2243806384905767094
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -823,6 +881,7 @@ MonoBehaviour:
   openingAnimationTime: 0.6
   closingAnimationTime: 0.6
   deniedAnimationTime: 0.6
+  warningAnimationTime: 0.6
   openingSFX:
     SetLoadSetting: 0
     AssetAddress: Assets/Prefabs/Doors/AirlockOpen.prefab
@@ -872,6 +931,24 @@ MonoBehaviour:
   maxTimeOpen: 5
   blockAutoClose: 0
   isWindowedDoor: 0
+  HackingProcessBase: {fileID: 2590545318543294087}
+  ConstructibleDoor: {fileID: 2423441889713074305}
+  conType: 7
+  requireLink: 0
+--- !u!114 &2423441889713074305
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8248341723222571775}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 46ea4fe8b9752b94faca0d3c08c397f7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  DoorAnimatorV2: {fileID: 2243806384905767094}
+  Reinforced: 0
 --- !u!1001 &3511082394880060143
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -884,6 +961,11 @@ PrefabInstance:
       propertyPath: doorController
       value: 
       objectReference: {fileID: 0}
+    - target: {fileID: -1004363680957688268, guid: 1291a5cb15d008c41bf0a373403f56b2,
+        type: 3}
+      propertyPath: CurrentsortingGroup
+      value: 
+      objectReference: {fileID: 6682145752921394767}
     - target: {fileID: 44702923082529482, guid: 1291a5cb15d008c41bf0a373403f56b2,
         type: 3}
       propertyPath: PresentSpriteSet
@@ -932,7 +1014,7 @@ PrefabInstance:
     - target: {fileID: 3968779613111739762, guid: 1291a5cb15d008c41bf0a373403f56b2,
         type: 3}
       propertyPath: m_AssetId
-      value: 
+      value: 6af0a221ec6985a46956ac77fab1f771
       objectReference: {fileID: 0}
     - target: {fileID: 4732752304642126855, guid: 1291a5cb15d008c41bf0a373403f56b2,
         type: 3}
@@ -1033,12 +1115,17 @@ PrefabInstance:
     - target: {fileID: 8330720231993589308, guid: 1291a5cb15d008c41bf0a373403f56b2,
         type: 3}
       propertyPath: wattusage
-      value: 840
+      value: 20
       objectReference: {fileID: 0}
     - target: {fileID: 8330720231993589308, guid: 1291a5cb15d008c41bf0a373403f56b2,
         type: 3}
       propertyPath: deviceType
       value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 8484722225096306265, guid: 1291a5cb15d008c41bf0a373403f56b2,
+        type: 3}
+      propertyPath: foreverID
+      value: 6af0a221ec6985a46956ac77fab1f771
       objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 4986678559899695466, guid: 1291a5cb15d008c41bf0a373403f56b2, type: 3}
@@ -1046,12 +1133,6 @@ PrefabInstance:
     - {fileID: -4969049584947791526, guid: 1291a5cb15d008c41bf0a373403f56b2, type: 3}
     - {fileID: 720260447592516819, guid: 1291a5cb15d008c41bf0a373403f56b2, type: 3}
   m_SourcePrefab: {fileID: 100100000, guid: 1291a5cb15d008c41bf0a373403f56b2, type: 3}
---- !u!1 &215518841633704133 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 3622147455447933482, guid: 1291a5cb15d008c41bf0a373403f56b2,
-    type: 3}
-  m_PrefabInstance: {fileID: 3511082394880060143}
-  m_PrefabAsset: {fileID: 0}
 --- !u!4 &8242232534866279461 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4817606987798484682, guid: 1291a5cb15d008c41bf0a373403f56b2,
@@ -1061,6 +1142,30 @@ Transform:
 --- !u!1 &8248341723222571775 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 4813822218561835024, guid: 1291a5cb15d008c41bf0a373403f56b2,
+    type: 3}
+  m_PrefabInstance: {fileID: 3511082394880060143}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &215518841633704133 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3622147455447933482, guid: 1291a5cb15d008c41bf0a373403f56b2,
+    type: 3}
+  m_PrefabInstance: {fileID: 3511082394880060143}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &2590545318543294087 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1390110248989545576, guid: 1291a5cb15d008c41bf0a373403f56b2,
+    type: 3}
+  m_PrefabInstance: {fileID: 3511082394880060143}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8248341723222571775}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 383ace094608c5f4898a03bdda48266e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!210 &6682145752921394767 stripped
+SortingGroup:
+  m_CorrespondingSourceObject: {fileID: 7782817179362649248, guid: 1291a5cb15d008c41bf0a373403f56b2,
     type: 3}
   m_PrefabInstance: {fileID: 3511082394880060143}
   m_PrefabAsset: {fileID: 0}

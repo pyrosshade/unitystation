@@ -39,9 +39,14 @@ namespace Systems.MobAIs
 		protected int randomSoundProbability = 20;
 		[SerializeField]
 		protected float searchTickRate = 0.5f;
+		protected float searchWaitTime = 0f;
+
 		protected float movementTickRate = 1f;
 		protected float moveWaitTime = 0f;
-		protected float searchWaitTime = 0f;
+
+		protected float forceActionTickRate = 1f;
+		protected float forceActionWaitTime = 0f;
+
 		protected bool deathSoundPlayed = false;
 		[SerializeField] protected MobStatus currentStatus;
 		public MobStatus CurrentStatus => currentStatus;
@@ -141,6 +146,16 @@ namespace Systems.MobAIs
 			if (!mobMeleeAction.performingDecision && mobMeleeAction.FollowTarget == null)
 			{
 				BeginSearch();
+			}
+			//We have target but not acting, so force do something
+			else if (mobMeleeAction.performingDecision == false && mobMeleeAction.performingAction == false)
+			{
+				forceActionWaitTime += Time.deltaTime;
+				if (forceActionWaitTime >= forceActionTickRate)
+				{
+					forceActionWaitTime = 0f;
+					mobMeleeAction.ForceTargetAction();
+				}
 			}
 		}
 
@@ -283,15 +298,17 @@ namespace Systems.MobAIs
 				}
 			}
 
-			if ((damagedBy is null) != false || damagedBy == mobMeleeAction.FollowTarget)
+			if ((damagedBy is null) || damagedBy == mobMeleeAction.FollowTarget)
 			{
 				return;
 			}
+
 			//80% chance the mob decides to attack the new attacker
 			if (DMMath.Prob(attackLastAttackerChance) == false)
 			{
 				return;
 			}
+
 			var playerScript = damagedBy.GetComponent<PlayerScript>();
 			if (playerScript != null)
 			{

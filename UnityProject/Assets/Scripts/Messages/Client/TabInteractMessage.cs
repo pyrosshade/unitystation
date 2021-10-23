@@ -1,7 +1,10 @@
+using System;
 using System.Collections.Generic;
-using Messages.Server;
-using Mirror;
 using UnityEngine;
+using Mirror;
+using Messages.Server;
+using Systems.Interaction;
+
 
 namespace Messages.Client
 {
@@ -40,9 +43,28 @@ namespace Messages.Client
 			}
 
 			var playerScript = player.Script;
+
 			//First Validations is for objects in the world (computers, etc), second check is for items in active hand (null rod, PADs).
-			bool validate = Validations.CanApply(player.Script, tabProvider, NetworkSide.Server)
-			                || playerScript.ItemStorage.GetActiveHandSlot().ItemObject == tabProvider;
+			bool validate;
+			if (playerScript.PlayerState == PlayerScript.PlayerStates.Ai)
+			{
+				validate = Validations.CanApply(new AiActivate(player.GameObject, null,
+					tabProvider, Intent.Help, AiActivate.ClickTypes.NormalClick), NetworkSide.Server);
+			}
+			else
+			{
+				try
+				{
+					validate = Validations.CanApply(player.Script, tabProvider, NetworkSide.Server)
+					           || playerScript.DynamicItemStorage.GetActiveHandSlot().ItemObject == tabProvider;
+				}
+				catch (NullReferenceException exception)
+				{
+					Logger.LogError("Caught NRE in TabInterectMessage.Process: " + exception.Message, Category.Interaction);
+					return;
+				}
+			}
+
 			if (!validate)
 			{
 				FailValidation(player, tabProvider, msg,"Can't interact/reach");

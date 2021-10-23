@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using Mirror;
 using UnityEngine;
 
@@ -12,6 +14,7 @@ namespace Messages.Server
 		public struct NetMessage : NetworkMessage
 		{
 			public uint Storage;
+			public uint StorageIndexOnGameObject;
 			public uint Item;
 			public int SlotIndex;
 			public NamedSlot NamedSlot;
@@ -31,11 +34,11 @@ namespace Messages.Server
 				ItemSlot slot = null;
 				if (msg.SlotIndex == -1)
 				{
-					slot = ItemSlot.GetNamed(NetworkObjects[0].GetComponent<ItemStorage>(), msg.NamedSlot);
+					slot = ItemSlot.GetNamed(NetworkObjects[0].GetComponents<ItemStorage>()[msg.StorageIndexOnGameObject], msg.NamedSlot);
 				}
 				else
 				{
-					slot = ItemSlot.GetIndexed(NetworkObjects[0].GetComponent<ItemStorage>(), msg.SlotIndex);
+					slot = ItemSlot.GetIndexed(NetworkObjects[0].GetComponents<ItemStorage>()[msg.StorageIndexOnGameObject], msg.SlotIndex);
 				}
 
 				if (slot.ItemObject)
@@ -85,7 +88,25 @@ namespace Messages.Server
 				NamedSlot = itemSlot.SlotIdentifier.NamedSlot.GetValueOrDefault(NamedSlot.none)
 			};
 
-			SendTo(recipient, msg);
+			try
+			{
+				msg.StorageIndexOnGameObject = 0;
+				foreach (var itemStorage in itemSlot.ItemStorage.GetComponents<ItemStorage>())
+				{
+					if (itemStorage == itemSlot.ItemStorage)
+					{
+						break;
+					}
+
+					msg.StorageIndexOnGameObject++;
+				}
+
+				SendTo(recipient, msg);
+			}
+			catch (NullReferenceException exception)
+			{
+				Logger.LogError("An NRE was caught in UpdateItemSlotMessage: " + exception.Message, Category.Inventory);
+			}
 		}
 
 		/// <summary>
@@ -94,8 +115,10 @@ namespace Messages.Server
 		/// <param name="recipients">clients to inform</param>
 		/// <param name="inventorySlot">slot to tell them about</param>
 		/// <returns></returns>
-		public static void Send(IEnumerable<GameObject> recipients, ItemSlot itemSlot)
+		public static void Send(HashSet<GameObject> recipients, ItemSlot itemSlot)
 		{
+			if (recipients.Count == 0) return;
+
 			NetMessage msg = new NetMessage
 			{
 				Storage = itemSlot.ItemStorageNetID,
@@ -103,6 +126,17 @@ namespace Messages.Server
 				SlotIndex = itemSlot.SlotIdentifier.SlotIndex,
 				NamedSlot = itemSlot.SlotIdentifier.NamedSlot.GetValueOrDefault(NamedSlot.none)
 			};
+
+			msg.StorageIndexOnGameObject = 0;
+			foreach (var itemStorage in itemSlot.ItemStorage.GetComponents<ItemStorage>())
+			{
+				if (itemStorage == itemSlot.ItemStorage)
+				{
+					break;
+				}
+
+				msg.StorageIndexOnGameObject++;
+			}
 
 			foreach (var recipient in recipients)
 			{

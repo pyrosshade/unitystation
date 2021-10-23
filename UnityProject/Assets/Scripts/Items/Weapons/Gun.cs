@@ -11,6 +11,7 @@ using UnityEngine;
 using UnityEngine.Serialization;
 using Weapons.Projectiles;
 using NaughtyAttributes;
+using Player.Movement;
 
 namespace Weapons
 {
@@ -189,9 +190,9 @@ namespace Weapons
 		private uint queuedLoadMagNetID = NetId.Invalid;
 
 		private RegisterTile registerTile;
-		public ItemSlot magSlot;
-		public ItemSlot pinSlot;
-		public ItemSlot suppressorSlot;
+		[NaughtyAttributes.ReadOnlyAttribute] public ItemSlot magSlot;
+		[NaughtyAttributes.ReadOnlyAttribute] public ItemSlot pinSlot;
+		[NaughtyAttributes.ReadOnlyAttribute] public ItemSlot suppressorSlot;
 
 		protected const float PinRemoveTime = 10f;
 
@@ -237,11 +238,6 @@ namespace Weapons
 		}
 
 		public virtual void OnSpawnServer(SpawnInfo info)
-		{
-			Init();
-		}
-
-		private void Init()
 		{
 			if (MagInternal)
 			{
@@ -528,8 +524,9 @@ namespace Weapons
 			//if we are client, only process this if we are holding it
 			if (!isServer)
 			{
-				if (UIManager.Hands == null || UIManager.Hands.CurrentSlot == null) return;
-				var heldItem = UIManager.Hands.CurrentSlot.ItemObject;
+				if (PlayerManager.LocalPlayerScript.DynamicItemStorage.OrNull()?.GetActiveHandSlot() == null) return;
+
+				var heldItem = PlayerManager.LocalPlayerScript.DynamicItemStorage.GetActiveHandSlot().ItemObject;
 				if (gameObject != heldItem) return;
 			}
 
@@ -642,7 +639,7 @@ namespace Weapons
 					$"{interaction.Performer.ExpensiveName()} begins removing the {FiringPin.gameObject.ExpensiveName()} from {gameObject.ExpensiveName()}.");
 
 				AudioSourceParameters audioSourceParameters = new AudioSourceParameters(UnityEngine.Random.Range(0.8f, 1.2f));
-				SoundManager.PlayNetworkedAtPos(SingletonSOSounds.Instance.WireCutter, interaction.Performer.AssumedWorldPosServer(), audioSourceParameters, sourceObj: serverHolder);
+				SoundManager.PlayNetworkedAtPos(CommonSounds.Instance.WireCutter, interaction.Performer.AssumedWorldPosServer(), audioSourceParameters, sourceObj: serverHolder);
 			}
 		}
 
@@ -753,7 +750,7 @@ namespace Weapons
 				DisplayShot(nextShot.shooter, nextShot.finalDirection, nextShot.damageZone, nextShot.isSuicide, toShoot.name, quantity);
 
 				//trigger a hotspot caused by gun firing
-				shooterRegisterTile.Matrix.ReactionManager.ExposeHotspotWorldPosition(nextShot.shooter.TileWorldPosition());
+				shooterRegisterTile.Matrix.ReactionManager.ExposeHotspotWorldPosition(nextShot.shooter.TileWorldPosition(), 500);
 
 				//tell all the clients to display the shot
 				ShootMessage.SendToAll(nextShot.finalDirection, nextShot.damageZone, nextShot.shooter, this.gameObject, nextShot.isSuicide, toShoot.name, quantity);
@@ -924,7 +921,7 @@ namespace Weapons
 
 		private void OutOfAmmoSfx()
 		{
-			SoundManager.PlayNetworkedAtPos(SingletonSOSounds.Instance.GunEmptyAlarm, transform.position, sourceObj: serverHolder);
+			SoundManager.PlayNetworkedAtPos(CommonSounds.Instance.GunEmptyAlarm, transform.position, sourceObj: serverHolder);
 		}
 
 		public void PlayEmptySfx()

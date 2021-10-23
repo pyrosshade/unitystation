@@ -41,8 +41,9 @@ public class OreGenerator : MonoBehaviour
 	// Start is called before the first frame update
 	void Start()
 	{
+		if (CustomNetworkManager.IsServer == false) return;
 		if(!runOnStart) return;
-		LoadManager.RegisterAction(RunOreGenerator);
+		LoadManager.RegisterActionDelayed(RunOreGenerator, 2);
 	}
 
 

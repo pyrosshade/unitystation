@@ -52,7 +52,7 @@ public class ItemSlot
 	/// <summary>
 	/// Net ID of the ItemStorage this slot exists in
 	/// </summary>
-	public uint ItemStorageNetID => itemStorage.GetComponentInParent<NetworkIdentity>().netId;
+	public uint ItemStorageNetID => itemStorage.GetComponent<NetworkIdentity>().netId;
 
 	/// <summary>
 	/// ItemAttributes of item in this slot, null if no item or item doesn't have any attributes.
@@ -69,14 +69,14 @@ public class ItemSlot
 	/// RegisterPlayer this slot is in the top-level inventory of. Null if not on a player or
 	/// in something like a backpack.
 	/// </summary>
-	public RegisterPlayer Player => itemStorage != null ? itemStorage.GetComponent<RegisterPlayer>() : null;
+	public RegisterPlayer Player => itemStorage != null ? itemStorage.Player : null;
 
 	/// <summary>
 	/// RegisterPlayer this slot is in the slot tree of (i.e. even if in a backpack). Null if not on a player at all.
 	/// </summary>
 	public RegisterPlayer RootPlayer()
 	{
-		var root = GetRootStorage();
+		var root = GetRootStorageOrPlayer();
 		if (root == null) return null;
 		return root.GetComponent<RegisterPlayer>();
 	}
@@ -175,6 +175,7 @@ public class ItemSlot
 	/// </summary>
 	public static ItemSlot GetNamed(ItemStorage itemStorage, NamedSlot named)
 	{
+		if (itemStorage == null) return null;
 		return Get(itemStorage, SlotIdentifier.Named(named));
 	}
 
@@ -224,9 +225,9 @@ public class ItemSlot
 	/// Gets the top-level ItemStorage containing this slot. I.e. if this
 	/// is inside a crate in a backpack, will return the crate ItemStorage.
 	/// </summary>
-	public ItemStorage GetRootStorage()
+	public GameObject GetRootStorageOrPlayer()
 	{
-		return itemStorage.GetRootStorage();
+		return itemStorage.GetRootStorageOrPlayer();
 	}
 
 	public override string ToString()
@@ -393,7 +394,7 @@ public class ItemSlot
 		if (examineRecipient)
 		{
 			//if this is going in a player's inventory, use a more appropriate message.
-			var targetPlayerScript = ItemStorage.GetComponent<PlayerScript>();
+			var targetPlayerScript = ItemStorage.GetRootStorageOrPlayer().GetComponent<PlayerScript>();
 			if (targetPlayerScript != null)
 			{
 				//going into a top-level inventory slot of a player
@@ -446,9 +447,9 @@ public class ItemSlot
 			}
 		}
 
-		if (storageToFree.GetComponentInParent<NetworkIdentity>())
+		if (storageToFree.GetComponent<NetworkIdentity>())
 		{
-			var instanceID = storageToFree.GetComponentInParent<NetworkIdentity>().GetInstanceID();
+			var instanceID = storageToFree.GetComponent<NetworkIdentity>().GetInstanceID();
 			slots.TryGetValue(instanceID, out var dict);
 			if (dict != null)
 			{

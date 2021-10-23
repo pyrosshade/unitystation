@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Objects.Wallmounts
 {
@@ -36,6 +37,15 @@ namespace Objects.Wallmounts
 					renderer.gameObject.AddComponent<WallmountSpriteBehavior>();
 				}
 			}
+
+			var textRenderers = GetComponentsInChildren<Text>();
+			foreach (var text in textRenderers)
+			{
+				if (GetComponent<WallmountTextBehavior>() == null)
+				{
+					text.gameObject.AddComponent<WallmountTextBehavior>();
+				}
+			}
 		}
 
 		void OnDrawGizmos()
@@ -46,6 +56,15 @@ namespace Objects.Wallmounts
 				Gizmos.color = Color.red;
 				DebugGizmoUtils.DrawArrow(transform.position, CalculateFacing());
 			}
+		}
+
+		/// <summary>
+		/// Calculates the tile which is in front of the wall mount
+		/// </summary>
+		/// <returns></returns>
+		public Vector3 CalculateTileInFrontPos()
+		{
+			return CalculateFacing() + transform.position;
 		}
 
 		/// <summary>
