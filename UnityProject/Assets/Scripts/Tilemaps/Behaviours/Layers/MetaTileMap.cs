@@ -88,8 +88,7 @@ namespace TileManagement
 
 		private void OnEnable()
 		{
-			if (Application.isPlaying == false) return;
-
+			
 			Layers = new Dictionary<LayerType, Layer>();
 			var layersKeys = new List<LayerType>();
 			var layersValues = new List<Layer>();
@@ -488,16 +487,20 @@ namespace TileManagement
 
 		public bool IsConstructable(Vector3Int position)
 		{
-			TileLocation tileLocation = null;
-			var canConstruct = false;
+			bool canConstruct = false;
 			foreach (var layer in LayersValues)
 			{
+				TileLocation tileLocation = null;
+				Dictionary<Vector3Int, TileLocation> tiles;
 				if (layer.LayerType == LayerType.Objects)
 					continue;
 
 				lock (PresentTiles)
 				{
-					PresentTiles[layer].TryGetValue(position, out tileLocation);
+					if (PresentTiles.TryGetValue(layer, out tiles))
+					{
+						tiles.TryGetValue(position, out tileLocation);
+					}
 				}
 
 				if (tileLocation?.Tile == null)
@@ -1952,6 +1955,12 @@ namespace TileManagement
 									{
 										layer.matrix.AddElectricalNode(new Vector3Int(n, p, localPlace.z),
 											electricalCableTile);
+									}
+
+									var disposalPipeTile = getTile as Objects.Disposals.DisposalPipe;
+									if (disposalPipeTile != null)
+									{
+										disposalPipeTile.InitialiseNode(localPlace, layer.matrix);
 									}
 
 									var pipeTile = getTile as Objects.Atmospherics.PipeTile;
