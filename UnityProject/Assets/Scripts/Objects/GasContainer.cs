@@ -25,7 +25,7 @@ namespace Objects.Atmospherics
 
 		private GasMix internalGasMix;
 
-		[InfoBox("Remember to right-click component header to validiate values.")]
+		[InfoBox("Remember to right-click component header to validate values.")]
 		public GasMix StoredGasMix = new GasMix();
 
 		public bool IsVenting { get; private set; } = false;

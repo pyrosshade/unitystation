@@ -45,6 +45,7 @@ public class CommonTraits : SingletonScriptableObject<CommonTraits>
 	[BoxGroup("Tools")] public ItemTrait Pickaxe;
 	[BoxGroup("Tools")] public ItemTrait ScienceScan;
 	[BoxGroup("Tools")] public ItemTrait AirlockPainter;
+	[BoxGroup("Tools")] public ItemTrait TransferableTank;
 
 	[BoxGroup("Surgical")] public ItemTrait Scalpel;
 	[BoxGroup("Surgical")] public ItemTrait Retractor;
